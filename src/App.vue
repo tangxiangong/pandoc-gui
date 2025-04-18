@@ -1,86 +1,148 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
-import { ElMessage, ElDialog } from 'element-plus'; // Import ElDialog
-import { basename, extname, dirname } from '@tauri-apps/api/path'; // Import path functions
-import { listen, TauriEvent, Event } from '@tauri-apps/api/event'; // Import listen, TauriEvent and Event
-import type { PhysicalPosition } from '@tauri-apps/api/window'; // Import PhysicalPosition type if needed, or adjust payload type
+import {
+  ElMessage, ElDialog, ElTable, ElTableColumn, ElButton, ElSpace, ElText, ElCard,
+  ElContainer, ElMain, ElFormItem, ElSelect, ElOption, ElDivider, ElIcon
+} from 'element-plus';
+import { Loading, Close } from '@element-plus/icons-vue';
+import { basename, dirname } from '@tauri-apps/api/path';
+import { listen, TauriEvent, Event } from '@tauri-apps/api/event';
+import type { PhysicalPosition } from '@tauri-apps/api/window';
 
-const inputPath = ref<string | null>(null);
-const outputPath = ref<string | null>(null); // Added output path state
+// Define an interface for the expected drop payload structure
+interface DropPayload {
+  paths: string[];
+  position: PhysicalPosition;
+}
+
+// State for individual file conversion progress/status
+interface ConversionStatus {
+  path: string;
+  status: 'pending' | 'converting' | 'success' | 'error';
+  message: string;
+  isSuccess: boolean; // Kept for easier conditional styling
+}
+
+// --- State Updates ---
+const inputPaths = ref<string[]>([]); // Keep this to easily check which paths are selected
+const conversionProgress = ref<ConversionStatus[]>([]); // This will be the source for the table
 const selectedOutputFormat = ref<string>("docx");
-const selectedInputFormat = ref<string>("auto"); // Restore input format state
-const conversionStatus = ref<string>("");
-const isSuccess = ref<boolean>(true); // Track if the status is success or error
-const isLoading = ref<boolean>(false); // Track loading state
-const isPreviewLoading = ref<boolean>(false); // Loading state for preview
-const showPreviewDialog = ref<boolean>(false); // Control preview dialog visibility
+const selectedInputFormat = ref<string>("auto");
+const isLoading = ref<boolean>(false); // Loading state for the whole batch
+const isPreviewLoading = ref<boolean>(false);
+const showPreviewDialog = ref<boolean>(false);
 const previewHtml = ref<string>("");
 
-// Restore input formats list (without ODT)
 const availableInputFormats = ["auto", "markdown", "html", "latex", "rst", "docx", "epub"];
 const availableOutputFormats = ["docx", "html", "pdf", "tex", "md", "odt", "rst", "epub"];
 
-// Computed property for suggested output filename
-const suggestedFilename = computed(async () => {
-  if (!inputPath.value) return '';
-  try {
-    const inputBasename = await basename(inputPath.value);
-    const inputExt = await extname(inputPath.value);
-    // Handle cases with no extension or leading dot files gracefully
-    const nameWithoutExt = inputExt ? inputBasename.substring(0, inputBasename.length - inputExt.length) : inputBasename;
-    return `${nameWithoutExt}.${selectedOutputFormat.value}`;
-  } catch (e) {
-    console.error("生成建议文件名时出错:", e);
-    return `输出.${selectedOutputFormat.value}`; // Fallback
-  }
-});
+// Computed properties
+const hasMultipleFiles = computed(() => inputPaths.value.length > 1);
+const hasFiles = computed(() => inputPaths.value.length > 0);
+
+// --- Function Updates ---
+
+// Helper to add a file and its initial progress state
+function addFileAndProgress(filePath: string) {
+    if (!inputPaths.value.includes(filePath)) {
+        inputPaths.value.push(filePath);
+        conversionProgress.value.push({
+            path: filePath,
+            status: 'pending',
+            message: '待处理',
+            isSuccess: true, // Default to true until error
+        });
+        return true; // Indicate file was added
+    }
+    return false; // Indicate file was already present
+}
+
+// Function to remove a file from both lists using its path
+function removeFileByPath(filePathToRemove: string) {
+    const indexInPaths = inputPaths.value.indexOf(filePathToRemove);
+    if (indexInPaths !== -1) {
+        inputPaths.value.splice(indexInPaths, 1);
+    }
+    // Find index in progress by path and remove
+    const indexInProgress = conversionProgress.value.findIndex(p => p.path === filePathToRemove);
+    if (indexInProgress !== -1) {
+        conversionProgress.value.splice(indexInProgress, 1);
+    }
+}
+
+function clearAllFiles() {
+  inputPaths.value = [];
+  conversionProgress.value = [];
+}
 
 async function selectFile() {
   try {
     const selected = await open({
-      multiple: false,
+      multiple: true,
       directory: false,
-      title: "选择输入文件" // Chinese title
+      title: "选择输入文件"
     });
-    if (typeof selected === 'string') {
-      inputPath.value = selected;
-      outputPath.value = null;
-      conversionStatus.value = '';
-      previewHtml.value = '';
-      isSuccess.value = true;
-    } else if (selected === null) {
-      inputPath.value = null;
-      // ElMessage.info('已取消选择文件'); // Optional feedback
-    } else {
-      console.warn('收到意外的选择类型:', selected);
-      inputPath.value = null;
+    let addedCount = 0;
+    if (Array.isArray(selected)) {
+      selected.forEach(path => {
+        if (addFileAndProgress(path)) {
+            addedCount++;
+        }
+      });
+    } else if (typeof selected === 'string') {
+      if (addFileAndProgress(selected)) {
+          addedCount++;
+      }
+    } // Ignore null (cancel)
+
+    if (addedCount > 0) {
+        previewHtml.value = ''; // Clear preview if new files are added
+        ElMessage.success(`已添加 ${addedCount} 个文件`);
     }
+
   } catch (error) {
     console.error("选择文件时出错:", error);
-    inputPath.value = null;
     ElMessage.error(`选择文件时出错: ${error}`);
   }
 }
 
-// Function to generate and show preview
+function handleFileDrop(paths: string[]) {
+  let addedCount = 0;
+  if (paths && paths.length > 0) {
+    paths.forEach(filePath => {
+       if (addFileAndProgress(filePath)) {
+           console.log('文件已拖放:', filePath);
+           addedCount++;
+       }
+    });
+    if (addedCount > 0) {
+      previewHtml.value = ''; // Clear preview if new files are added
+      ElMessage.success(`已添加 ${addedCount} 个文件`);
+    }
+  } else {
+    console.warn('handleFileDrop 收到空或无效的路径数组:', paths);
+  }
+}
+
 async function generatePreview() {
-  if (!inputPath.value) {
+  if (!hasFiles.value) {
     ElMessage.warning("请先选择输入文件");
     return;
   }
+  if (hasMultipleFiles.value) {
+    ElMessage.warning("预览功能仅支持单个文件");
+    return;
+  }
+  const targetPath = inputPaths.value[0];
+
   isPreviewLoading.value = true;
   previewHtml.value = "";
   ElMessage({ message: "正在生成预览...", type: "info", duration: 0 });
 
   try {
-    // Restore passing input_format
-    const options: any = {
-      input_path: inputPath.value,
-      input_format: selectedInputFormat.value, // Pass selected input format
-    };
-
+    const options = { input_path: targetPath, input_format: selectedInputFormat.value };
     const htmlResult: string = await invoke("preview_file", { options });
     ElMessage.closeAll("info");
     previewHtml.value = htmlResult;
@@ -96,90 +158,100 @@ async function generatePreview() {
 }
 
 async function startConversion() {
-  // 1. Check only for input file
-  if (!inputPath.value) {
-    ElMessage.warning("请先选择输入文件");
-    // conversionStatus.value = "请先选择输入文件"; // No longer needed here
-    // isSuccess.value = false;
+  if (!hasFiles.value) {
+    ElMessage.warning("请先选择或拖拽文件");
     return;
   }
 
-  isLoading.value = true; // Set loading early
-  conversionStatus.value = ""; // Clear previous status
-  isSuccess.value = true;
+  isLoading.value = true;
+  // Reset status of existing files to pending before starting
+  conversionProgress.value.forEach(p => {
+      p.status = 'pending';
+      p.message = '等待转换';
+      p.isSuccess = true;
+  });
 
-  let chosenOutputPath: string | null = null;
+  ElMessage({ message: "开始批量转换...", type: "info", duration: 0 });
+  let successCount = 0;
+  let errorCount = 0;
 
-  try {
-    // 2. Show Save Dialog First
-    const filename = await suggestedFilename.value;
-    const inputDir = await dirname(inputPath.value);
-    const defaultSavePath = `${inputDir}/${filename}`;
+  // Use a copy of inputPaths for iteration in case it's modified during async operations
+  const pathsToConvert = [...inputPaths.value];
 
-    chosenOutputPath = await save({
-      title: '选择输出文件保存位置',
-      defaultPath: defaultSavePath,
-      filters: [{
-          name: selectedOutputFormat.value.toUpperCase(),
-          extensions: [selectedOutputFormat.value]
-      }]
-    });
+  for (const currentPath of pathsToConvert) {
+    const progressIndex = conversionProgress.value.findIndex(p => p.path === currentPath);
 
-    // 3. Check if user cancelled save dialog
-    if (!chosenOutputPath) {
-      ElMessage.info('已取消转换');
-      isLoading.value = false; // Reset loading state
-      return;
+    // Check if the file still exists in the main list and has a progress entry
+    if (progressIndex === -1 || !inputPaths.value.includes(currentPath)) {
+        console.warn(`Skipping file ${currentPath}, removed before conversion started or missing progress entry.`);
+        continue;
     }
 
-    // 4. Proceed with conversion using the chosen path
-    conversionStatus.value = "开始转换..."; // Set status message now
-    ElMessage({ message: "正在转换...", type: "info", duration: 0 });
+    conversionProgress.value[progressIndex].status = 'converting';
+    conversionProgress.value[progressIndex].message = '正在转换...';
 
-    const options: any = {
-      input_path: inputPath.value,
-      output_format: selectedOutputFormat.value,
-      output_path: chosenOutputPath, // Use the path from save dialog
-      input_format: selectedInputFormat.value,
-    };
-    const result: string = await invoke("convert_file", { options });
-    ElMessage.closeAll("info");
-    conversionStatus.value = result;
-    isSuccess.value = true;
-    ElMessage.success("转换成功"); // Simple success message
+    try {
+      const inputBasename = await basename(currentPath);
+      const inputDir = await dirname(currentPath);
 
-  } catch (error) {
-    ElMessage.closeAll("info");
-    console.error("转换出错:", error);
-    const errorMsg = `转换失败: ${error}`;
-    conversionStatus.value = errorMsg;
-    isSuccess.value = false;
-    ElMessage.error(errorMsg);
-  } finally {
-    isLoading.value = false; // Ensure loading state is reset
+      // Revised logic to get name without extension
+      const lastDotIndex = inputBasename.lastIndexOf('.');
+      let nameWithoutExt: string;
+      if (lastDotIndex > 0) { // Check if dot exists and is not the first character
+          nameWithoutExt = inputBasename.substring(0, lastDotIndex);
+      } else {
+          // Use the full basename if no extension dot or it's a hidden file (dot is first char)
+          nameWithoutExt = inputBasename;
+      }
+      
+      const outputPath = `${inputDir}/${nameWithoutExt}.${selectedOutputFormat.value}`;
+      console.log('Generated Output Path:', outputPath); // Add log for debugging
+
+      const options = {
+        input_path: currentPath,
+        output_format: selectedOutputFormat.value,
+        output_path: outputPath,
+        input_format: selectedInputFormat.value,
+      };
+
+      const result: string = await invoke("convert_file", { options });
+
+      // Double-check index in case array was modified
+      const currentIndex = conversionProgress.value.findIndex(p => p.path === currentPath);
+      if (currentIndex !== -1) {
+          conversionProgress.value[currentIndex].status = 'success';
+          conversionProgress.value[currentIndex].message = result || '转换成功';
+          conversionProgress.value[currentIndex].isSuccess = true;
+          successCount++;
+      } else {
+          console.warn(`File ${currentPath} conversion succeeded but entry was removed.`);
+      }
+
+    } catch (error: any) {
+      console.error(`文件 "${currentPath}" 转换出错:`, error);
+      const errorMsg = `转换失败: ${error}`;
+       // Double-check index in case array was modified
+      const currentIndex = conversionProgress.value.findIndex(p => p.path === currentPath);
+      if (currentIndex !== -1) {
+          conversionProgress.value[currentIndex].status = 'error';
+          conversionProgress.value[currentIndex].message = errorMsg;
+          conversionProgress.value[currentIndex].isSuccess = false;
+          errorCount++;
+      } else {
+           console.warn(`File ${currentPath} conversion failed but entry was removed.`);
+      }
+    }
   }
-}
 
-// Define an interface for the expected drop payload structure
-interface DropPayload {
-  paths: string[];
-  position: PhysicalPosition;
-}
+  ElMessage.closeAll("info");
+  isLoading.value = false;
 
-// Function to handle dropped file
-function handleFileDrop(paths: string[]) {
-  if (paths && paths.length > 0) {
-    const filePath = paths[0]; // Use the first dropped file
-    console.log('文件已拖放:', filePath);
-    inputPath.value = filePath;
-    outputPath.value = null;
-    conversionStatus.value = '';
-    previewHtml.value = '';
-    isSuccess.value = true;
-    ElMessage.success(`已选择文件: ${filePath}`);
-  } else {
-    // This block should ideally not be reached now if the listener logic is correct
-    console.warn('handleFileDrop 收到空或无效的路径数组:', paths);
+  if (errorCount === 0 && successCount > 0) {
+    ElMessage.success(`批量转换完成，${successCount} 个文件成功。`);
+  } else if (errorCount > 0) {
+    ElMessage.warning(`批量转换完成，${successCount} 个成功，${errorCount} 个失败。`);
+  } else if (successCount === 0 && errorCount === 0) {
+      ElMessage.info('没有文件被转换（可能列表为空或文件在转换前被移除）。');
   }
 }
 
@@ -188,29 +260,20 @@ let unlistenDragDrop: (() => void) | null = null;
 
 onMounted(async () => {
   try {
-    // Listen for the file drop event, expecting DropPayload
     unlistenDragDrop = await listen<DropPayload>(TauriEvent.DRAG_DROP, (event: Event<DropPayload>) => {
-      // Check if payload and its paths property exist and have paths
-      if (event.payload && event.payload.paths && event.payload.paths.length > 0) {
-        handleFileDrop(event.payload.paths); // Pass the paths array
+      if (event.payload?.paths?.length > 0) {
+        handleFileDrop(event.payload.paths);
       } else {
-         console.warn('拖放事件没有有效的 paths 数组:', event);
+        console.warn('拖放事件没有有效的 paths 数组:', event);
       }
     });
     console.log('文件拖放监听器已设置');
-
-    // Optional: Add listeners for visual feedback during drag
-    // await listen(TauriEvent.DRAG_ENTER, () => console.log('File entering drop zone'));
-    // await listen(TauriEvent.DRAG_OVER, () => console.log('File over drop zone'));
-    // await listen(TauriEvent.DRAG_LEAVE, () => console.log('File leaving drop zone'));
-
   } catch (error) {
     console.error('设置文件拖放监听器时出错:', error);
     ElMessage.error(`无法设置文件拖放功能: ${error}`);
   }
 });
 
-// Clean up listener on component unmount
 onUnmounted(() => {
   if (unlistenDragDrop) {
     unlistenDragDrop();
@@ -223,36 +286,83 @@ onUnmounted(() => {
 <template>
   <el-container style="padding: 20px;">
     <el-main>
-      <el-card shadow="never" style="max-width: 600px; margin: auto;">
+      <el-card shadow="never" style="max-width: 800px; margin: auto;">
         <template #header>
           <div style="text-align: center;">
-            <!-- Keep title in English or change as desired -->
             <h1 style="margin: 0; font-size: 1.8em; color: #409EFF;">Pandoc GUI</h1>
           </div>
         </template>
 
-        <el-space direction="vertical" alignment="stretch" :size="20" style="width: 100%;">
+        <el-space direction="vertical" alignment="stretch" :size="15" style="width: 100%;">
 
           <el-button @click="selectFile" :disabled="isLoading || isPreviewLoading" size="large" style="width: 100%;">
-            选择输入文件
+             选择输入文件 (可多选)
           </el-button>
-          
-          <!-- Add drag and drop hint here -->
+
           <el-text type="info" size="small" style="text-align: center; display: block;">
             或将文件拖拽到此处
           </el-text>
 
-          <el-alert
-            v-if="inputPath"
-            :title="'输入: ' + inputPath"
-            type="info"
-            :closable="false"
-            show-icon
-            style="word-break: break-all;"
-          />
+          <!-- Combined File List & Status Table -->
+          <div v-if="hasFiles" class="file-status-table-container" style="margin-top: 10px;">
+             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                 <el-text size="default">文件列表 & 状态:</el-text>
+                 <el-button
+                    type="warning"
+                    link
+                    size="small"
+                    @click="clearAllFiles"
+                    :disabled="isLoading"
+                 >
+                    清空列表
+                </el-button>
+            </div>
+             <el-table :data="conversionProgress" stripe style="width: 100%" size="small">
+                 <!-- File Path Column -->
+                <el-table-column prop="path" label="文件" show-overflow-tooltip>
+                     <template #default="scope">
+                        <el-text size="small" truncated>{{ scope.row.path }}</el-text>
+                    </template>
+                </el-table-column>
+                <!-- Status Column -->
+                <el-table-column prop="status" label="状态" width="100">
+                     <template #default="scope">
+                         <el-icon v-if="scope.row.status === 'converting'" class="is-loading">
+                             <Loading />
+                         </el-icon>
+                        <el-text v-else size="small" :type="scope.row.status === 'success' ? 'success' : scope.row.status === 'error' ? 'danger' : 'info'">
+                          {{ scope.row.status === 'success' ? '成功' : scope.row.status === 'error' ? '失败' : '待处理' }}
+                        </el-text>
+                    </template>
+                </el-table-column>
+                <!-- Message Column -->
+                <el-table-column prop="message" label="信息" show-overflow-tooltip>
+                     <template #default="scope">
+                        <el-text size="small" :type="scope.row.isSuccess ? '' : 'danger'" truncated>{{ scope.row.message }}</el-text>
+                    </template>
+                </el-table-column>
+                 <!-- Actions Column -->
+                <el-table-column label="操作" width="80" align="center">
+                    <template #default="scope">
+                         <el-button
+                          type="danger"
+                          :icon="Close"
+                          link
+                          size="small"
+                          @click="removeFileByPath(scope.row.path)"
+                          :disabled="isLoading"
+                          title="移除此文件"
+                     >
+                          移除
+                         </el-button>
+                    </template>
+                </el-table-column>
+             </el-table>
+          </div>
+
+          <el-divider v-if="hasFiles" style="margin: 10px 0;" />
 
           <!-- Format Selection -->
-          <!-- Restore Input Format Selector -->
           <el-form-item label="输入格式:" style="margin-bottom: 0;">
              <el-select v-model="selectedInputFormat" placeholder="选择输入格式 (默认自动)" :disabled="isLoading || isPreviewLoading" style="width: 100%;">
                <el-option
@@ -281,36 +391,27 @@ onUnmounted(() => {
           </el-form-item>
 
           <div style="display: flex; gap: 10px;">
-            <el-button 
-              @click="generatePreview" 
-              :disabled="!inputPath || isLoading || isPreviewLoading" 
-              :loading="isPreviewLoading" 
-              size="large" 
+            <el-button
+              @click="generatePreview"
+              :disabled="!hasFiles || hasMultipleFiles || isLoading || isPreviewLoading"
+              :loading="isPreviewLoading"
+              size="large"
               style="flex-grow: 1;"
+              title="预览仅支持单个文件"
             >
               预览 (HTML)
             </el-button>
             <el-button
               type="primary"
               @click="startConversion"
-              :disabled="!inputPath || isLoading || isPreviewLoading"
+              :disabled="!hasFiles || isLoading || isPreviewLoading"
               :loading="isLoading"
               size="large"
               style="flex-grow: 1; font-weight: bold;"
             >
-              {{ isLoading ? '正在转换...' : '转换并保存' }}
+              {{ isLoading ? '正在转换...' : (hasMultipleFiles ? '开始批量转换' : '转换选定文件') }}
             </el-button>
           </div>
-
-          <el-alert
-            v-if="conversionStatus && !isLoading && !isPreviewLoading"
-            :title="conversionStatus"
-            :type="isSuccess ? 'success' : 'error'"
-            show-icon
-            :closable="true"
-            @close="conversionStatus = ''"
-            style="margin-top: 15px;"
-          />
 
         </el-space>
       </el-card>
@@ -319,8 +420,6 @@ onUnmounted(() => {
       <el-dialog v-model="showPreviewDialog" title="HTML 预览" width="80%" top="5vh">
         <div style="height: 75vh; overflow-y: auto; border: 1px solid #eee; padding: 10px;">
            <div v-html="previewHtml"></div>
-           <!-- Or using iframe for better isolation: -->
-           <!-- <iframe :srcdoc="previewHtml" style="width: 100%; height: 100%; border: none;"></iframe> -->
         </div>
          <template #footer>
           <span class="dialog-footer">
@@ -334,32 +433,30 @@ onUnmounted(() => {
 </template>
 
 <style>
-/* Remove scoped attribute to apply global styles if needed, or keep it scoped */
-/* We removed the custom styles, relying on Element Plus defaults */
-
-/* Optional: Global style adjustments if necessary */
+/* Optional: Global style adjustments */
 body {
-  background-color: #f4f4f5; /* Light gray background for the whole page */
+  background-color: #f4f4f5;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Center the card vertically and horizontally (can be tricky with Tauri window resizing) */
 .el-container {
-  /* display: flex; */ /* Can cause issues with height */
-  /* align-items: center; */
-  /* justify-content: center; */
-  min-height: 100vh; /* Try to fill viewport height */
+  min-height: 100vh;
 }
 
 h1 {
-   /* Ensure h1 doesn't add extra margins causing layout shifts */
    margin-bottom: 0;
 }
 
 .el-form-item__label {
-    font-weight: 500 !important; /* Make label slightly bolder */
+    font-weight: 500 !important;
     color: #606266 !important;
 }
+
+/* Style for spinner in table */
+.el-icon.is-loading {
+    animation: rotating 2s linear infinite;
+}
+
 
 </style>
