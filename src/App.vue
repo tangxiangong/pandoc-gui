@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { ElMessage, ElDialog } from 'element-plus'; // Import ElDialog
 import { basename, extname, dirname } from '@tauri-apps/api/path'; // Import path functions
+import { listen, TauriEvent, Event } from '@tauri-apps/api/event'; // Import listen, TauriEvent and Event
+import type { PhysicalPosition } from '@tauri-apps/api/window'; // Import PhysicalPosition type if needed, or adjust payload type
 
 const inputPath = ref<string | null>(null);
 const outputPath = ref<string | null>(null); // Added output path state
@@ -158,6 +160,64 @@ async function startConversion() {
   }
 }
 
+// Define an interface for the expected drop payload structure
+interface DropPayload {
+  paths: string[];
+  position: PhysicalPosition;
+}
+
+// Function to handle dropped file
+function handleFileDrop(paths: string[]) {
+  if (paths && paths.length > 0) {
+    const filePath = paths[0]; // Use the first dropped file
+    console.log('文件已拖放:', filePath);
+    inputPath.value = filePath;
+    outputPath.value = null;
+    conversionStatus.value = '';
+    previewHtml.value = '';
+    isSuccess.value = true;
+    ElMessage.success(`已选择文件: ${filePath}`);
+  } else {
+    // This block should ideally not be reached now if the listener logic is correct
+    console.warn('handleFileDrop 收到空或无效的路径数组:', paths);
+  }
+}
+
+// Setup drag and drop listener
+let unlistenDragDrop: (() => void) | null = null;
+
+onMounted(async () => {
+  try {
+    // Listen for the file drop event, expecting DropPayload
+    unlistenDragDrop = await listen<DropPayload>(TauriEvent.DRAG_DROP, (event: Event<DropPayload>) => {
+      // Check if payload and its paths property exist and have paths
+      if (event.payload && event.payload.paths && event.payload.paths.length > 0) {
+        handleFileDrop(event.payload.paths); // Pass the paths array
+      } else {
+         console.warn('拖放事件没有有效的 paths 数组:', event);
+      }
+    });
+    console.log('文件拖放监听器已设置');
+
+    // Optional: Add listeners for visual feedback during drag
+    // await listen(TauriEvent.DRAG_ENTER, () => console.log('File entering drop zone'));
+    // await listen(TauriEvent.DRAG_OVER, () => console.log('File over drop zone'));
+    // await listen(TauriEvent.DRAG_LEAVE, () => console.log('File leaving drop zone'));
+
+  } catch (error) {
+    console.error('设置文件拖放监听器时出错:', error);
+    ElMessage.error(`无法设置文件拖放功能: ${error}`);
+  }
+});
+
+// Clean up listener on component unmount
+onUnmounted(() => {
+  if (unlistenDragDrop) {
+    unlistenDragDrop();
+    console.log('文件拖放监听器已移除');
+  }
+});
+
 </script>
 
 <template>
@@ -173,9 +233,14 @@ async function startConversion() {
 
         <el-space direction="vertical" alignment="stretch" :size="20" style="width: 100%;">
 
-          <el-button @click="selectFile" :disabled="isLoading || isPreviewLoading" size="large">
+          <el-button @click="selectFile" :disabled="isLoading || isPreviewLoading" size="large" style="width: 100%;">
             选择输入文件
           </el-button>
+          
+          <!-- Add drag and drop hint here -->
+          <el-text type="info" size="small" style="text-align: center; display: block;">
+            或将文件拖拽到此处
+          </el-text>
 
           <el-alert
             v-if="inputPath"
