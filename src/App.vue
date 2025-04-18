@@ -457,6 +457,4 @@ h1 {
 .el-icon.is-loading {
     animation: rotating 2s linear infinite;
 }
-
-
 </style>
