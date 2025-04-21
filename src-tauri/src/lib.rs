@@ -47,6 +47,15 @@ struct ConversionOptions {
     input_format: Option<String>,
 }
 
+// Options for converting directly from content string
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ConversionContentOptions {
+    input_content: String,
+    output_format: String,
+    output_path: String,
+    // input_format is assumed to be markdown for editor content
+}
+
 // Define options specific to preview
 #[derive(serde::Serialize, serde::Deserialize)]
 struct PreviewOptions {
@@ -106,6 +115,44 @@ fn convert_file(options: ConversionOptions) -> Result<String, String> {
         Err(e) => {
             println!("Pandoc 转换失败: {:?}", e);
             Err(format!("Pandoc 转换失败: {}", e))
+        }
+    }
+}
+
+// New command for converting content directly
+#[tauri::command]
+fn convert_content(options: ConversionContentOptions) -> Result<String, String> {
+    println!("收到编辑器内容转换请求:");
+    println!("  输出格式: {}", options.output_format);
+    println!("  输出路径: {}", options.output_path);
+
+    let mut pandoc = Pandoc::new();
+
+    // Set input from string
+    pandoc.set_input(InputKind::Pipe(options.input_content));
+    // Editor content is always treated as Markdown
+    pandoc.set_input_format(InputFormat::Markdown, vec![]);
+    println!("  输入格式: Markdown (来自编辑器)");
+
+    // Output details
+    let output_path = PathBuf::from(&options.output_path);
+    let output_path_str = options.output_path.clone();
+
+    let output_format_enum = parse_output_format(&options.output_format)?;
+
+    pandoc.set_output(OutputKind::File(output_path));
+    pandoc.set_output_format(output_format_enum, vec![]);
+    pandoc.add_option(PandocOption::Standalone);
+
+    println!("执行 Pandoc 编辑器内容转换...");
+    match pandoc.execute() {
+        Ok(_) => {
+            println!("Pandoc 编辑器内容转换成功。");
+            Ok(format!("转换成功！输出已保存至: {}", output_path_str))
+        }
+        Err(e) => {
+            println!("Pandoc 编辑器内容转换失败: {:?}", e);
+            Err(format!("Pandoc 编辑器内容转换失败: {}", e))
         }
     }
 }
@@ -174,10 +221,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        // 注册两个命令
+        // 注册命令
         .invoke_handler(tauri::generate_handler![
             convert_file,
-            preview_file
+            preview_file,
+            convert_content // Re-register the content conversion command
         ])
         .run(tauri::generate_context!())
         .expect("运行 Tauri 应用程序时出错");

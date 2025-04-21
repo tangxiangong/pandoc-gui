@@ -223,26 +223,16 @@ async function startConversion() {
             return; // Exit if cancelled
         }
 
-        // NOTE: We need to decide how to handle this. Either re-introduce
-        // convert_content in Rust, or pass the content to convert_file somehow?
-        // For now, let's assume we will re-introduce convert_content later.
-        // If we stick to ONLY convert_file, we'd need to save the editor
-        // content to a temporary file first.
-        // Comment out options declaration as it's unused with the simulated call below
-        // const _options = {
-        //     // input_path: null, // Indicate no file path
-        //     input_content: editorContent.value, // Pass content directly
-        //     output_format: selectedOutputFormat.value,
-        //     output_path: outputPath,
-        //     input_format: 'markdown', // Editor content is always markdown
-        // };
+        // Define options specifically for convert_content
+        const options = {
+            input_content: editorContent.value, // Pass content directly
+            output_format: selectedOutputFormat.value,
+            output_path: outputPath,
+            // input_format is not needed for convert_content as it assumes markdown
+        };
 
-        // Placeholder - this will fail until backend is updated
-        // const result: string = await invoke("convert_content", { options });
-        // Simulate success for now for UI testing
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Fake delay
-        const result = "转换成功（模拟）";
-        console.warn("Backend command 'convert_content' needs to be re-enabled or logic adapted!");
+        // Actually invoke the backend command
+        const result: string = await invoke("convert_content", { options }); 
 
         conversionProgress.value[0].status = 'success';
         conversionProgress.value[0].message = result || '转换成功';
@@ -345,14 +335,6 @@ async function startConversion() {
           }
           continue;
       }
-
-      // Comment out options declaration as it's unused with the simulated call below
-      // const options = {
-      //     input_path: currentPath,
-      //     output_format: selectedOutputFormat.value,
-      //     output_path: outputPath, // Use the determined path (user-selected or automatic)
-      //     input_format: selectedInputFormat.value,
-      // };
 
       const options = { // This options is used by invoke below
           input_path: currentPath,
