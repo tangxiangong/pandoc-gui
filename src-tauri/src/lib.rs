@@ -10,15 +10,15 @@ fn parse_output_format(format_str: &str) -> Result<OutputFormat, String> {
     match format_str.to_lowercase().as_str() {
         "docx" => Ok(OutputFormat::Docx),
         "html" | "html5" => Ok(OutputFormat::Html5),
-        "html4" => Err("Html4 output format variant name uncertain or potentially unsupported directly. Try Html5 or check pandoc crate documentation.".to_string()),
-        "pdf" => Err("Direct PDF output via crate requires specific engine setup. Use intermediate format like LaTeX or HTML.".to_string()),
+        "html4" => Err("Html4 输出格式名称不确定或可能不直接支持。请尝试 Html5 或检查 pandoc crate 文档。".to_string()),
+        "pdf" => Err("直接通过 crate 输出 PDF 需要特定引擎设置。请使用中间格式（如 LaTeX 或 HTML）。".to_string()),
         "tex" | "latex" => Ok(OutputFormat::Latex),
         "md" | "markdown" => Ok(OutputFormat::Markdown),
         "rst" => Ok(OutputFormat::Rst),
         "odt" => Ok(OutputFormat::OpenDocument),
         "epub" | "epub3" | "epub2" => Ok(OutputFormat::Epub),
         // Add more formats as needed based on pandoc::OutputFormat enum
-        _ => Err(format!("Unsupported output format: {}", format_str)),
+        _ => Err(format!("未支持的输出格式: {}", format_str)),
     }
 }
 
@@ -35,7 +35,7 @@ fn parse_input_format(format_str: &str) -> Result<InputFormat, String> {
         "docx" => Ok(InputFormat::Docx),
         // "odt" is intentionally left out based on previous error
         "epub" => Ok(InputFormat::Epub),
-        _ => Err(format!("Unsupported input format: {}", format_str)),
+        _ => Err(format!("未支持的输入格式: {}", format_str)),
     }
 }
 
@@ -56,18 +56,18 @@ struct PreviewOptions {
 
 #[tauri::command]
 fn convert_file(options: ConversionOptions) -> Result<String, String> {
-    println!("Received conversion request:");
-    println!("  Input Path: {}", options.input_path);
-    println!("  Output Format: {}", options.output_format);
-    println!("  Output Path: {}", options.output_path);
-    // Restore input format logging
+    println!("收到转换请求:");
+    println!("  输入路径: {}", options.input_path);
+    println!("  输出格式: {}", options.output_format);
+    println!("  输出路径: {}", options.output_path);
+    // 恢复输入格式日志记录
     if let Some(ref infmt) = options.input_format {
-        println!("  Input Format: {}", infmt);
+        println!("  输入格式: {}", infmt);
     }
 
     let input_path = PathBuf::from(&options.input_path);
     if !input_path.exists() {
-        return Err(format!("Input file not found: {}", options.input_path));
+        return Err(format!("输入文件未找到: {}", options.input_path));
     }
 
     let output_path = PathBuf::from(&options.output_path);
@@ -84,12 +84,12 @@ fn convert_file(options: ConversionOptions) -> Result<String, String> {
         if !input_format_str.eq_ignore_ascii_case("auto") {
             let input_format_enum = parse_input_format(input_format_str)?;
             pandoc.set_input_format(input_format_enum, vec![]);
-            println!("Explicitly setting input format to: {}", input_format_str);
+            println!("显式设置输入格式为: {}", input_format_str);
         } else {
-            println!("Input format set to auto-detect.");
+            println!("输入格式设置为自动检测。");
         }
     } else {
-        println!("Input format not specified, using auto-detect.");
+        println!("未指定输入格式，使用自动检测。");
     }
 
     pandoc.set_output(OutputKind::File(output_path));
@@ -97,32 +97,32 @@ fn convert_file(options: ConversionOptions) -> Result<String, String> {
 
     pandoc.add_option(PandocOption::Standalone);
 
-    println!("Executing Pandoc conversion...");
+    println!("执行 Pandoc 转换...");
     match pandoc.execute() {
         Ok(_) => {
-            println!("Pandoc conversion successful.");
+            println!("Pandoc 转换成功。");
             Ok(format!("转换成功！输出已保存至: {}", output_path_str)) // Keep Chinese success message
         }
         Err(e) => {
-            println!("Pandoc conversion failed: {:?}", e);
-            Err(format!("Pandoc conversion failed: {}", e))
+            println!("Pandoc 转换失败: {:?}", e);
+            Err(format!("Pandoc 转换失败: {}", e))
         }
     }
 }
 
-// New command for generating HTML preview
+// 生成 HTML 预览的新命令
 #[tauri::command]
 fn preview_file(options: PreviewOptions) -> Result<String, String> {
-    println!("Received preview request:");
-    println!("  Input Path: {}", options.input_path);
-    // Restore input format logging
+    println!("收到预览请求:");
+    println!("  输入路径: {}", options.input_path);
+    // 恢复输入格式日志记录
     if let Some(ref infmt) = options.input_format {
-        println!("  Input Format: {}", infmt);
+        println!("  输入格式: {}", infmt);
     }
 
     let input_path = PathBuf::from(&options.input_path);
     if !input_path.exists() {
-        return Err(format!("Input file not found: {}", options.input_path));
+        return Err(format!("输入文件未找到: {}", options.input_path));
     }
 
     let mut pandoc = Pandoc::new();
@@ -134,7 +134,7 @@ fn preview_file(options: PreviewOptions) -> Result<String, String> {
             let input_format_enum = parse_input_format(input_format_str)?;
             pandoc.set_input_format(input_format_enum, vec![]);
             println!(
-                "Preview: Explicitly setting input format to: {}",
+                "预览: 显式设置输入格式为: {}",
                 input_format_str
             );
         }
@@ -144,27 +144,27 @@ fn preview_file(options: PreviewOptions) -> Result<String, String> {
     pandoc.set_output(OutputKind::Pipe);
     pandoc.add_option(PandocOption::Standalone);
 
-    println!("Executing Pandoc preview generation (HTML)...");
+    println!("执行 Pandoc 预览生成 (HTML)...");
     match pandoc.execute() {
         Ok(pandoc_output) => {
             // Match the PandocOutput enum variant
             match pandoc_output {
                 PandocOutput::ToBuffer(buffer) => {
-                    println!("Pandoc preview generation successful.");
+                    println!("Pandoc 预览生成成功。");
                     // Convert Vec<u8> buffer to String
                     String::from_utf8(buffer.into())
-                        .map_err(|e| format!("Failed to decode preview output as UTF-8: {}", e))
+                        .map_err(|e| format!("Failed to 解码预览输出为 UTF-8: {}", e))
                 }
                 _ => {
                     // Should not happen with OutputKind::Pipe
-                    println!("Unexpected PandocOutput variant for Pipe.");
-                    Err("Unexpected preview output type.".to_string())
+                    println!("意外的 PandocOutput 变体用于 Pipe。");
+                    Err("意外的预览输出类型。".to_string())
                 }
             }
         }
         Err(e) => {
-            println!("Pandoc preview generation failed: {:?}", e);
-            Err(format!("Pandoc preview generation failed: {}", e))
+            println!("Pandoc 预览生成失败: {:?}", e);
+            Err(format!("Pandoc 预览生成失败: {}", e))
         }
     }
 }
@@ -174,8 +174,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        // Register both commands
+        // 注册两个命令
         .invoke_handler(tauri::generate_handler![convert_file, preview_file])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("运行 Tauri 应用程序时出错");
 }
