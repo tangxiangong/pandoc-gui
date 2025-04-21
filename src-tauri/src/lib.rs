@@ -44,7 +44,7 @@ struct ConversionOptions {
     input_path: String,
     output_format: String,
     output_path: String,
-    input_format: Option<String>, // Restore input format field
+    input_format: Option<String>,
 }
 
 // Define options specific to preview
@@ -54,32 +54,27 @@ struct PreviewOptions {
     input_format: Option<String>, // Restore input format field
 }
 
+// Add the command attribute back
 #[tauri::command]
 fn convert_file(options: ConversionOptions) -> Result<String, String> {
     println!("收到转换请求:");
     println!("  输入路径: {}", options.input_path);
     println!("  输出格式: {}", options.output_format);
     println!("  输出路径: {}", options.output_path);
-    // 恢复输入格式日志记录
     if let Some(ref infmt) = options.input_format {
         println!("  输入格式: {}", infmt);
     }
 
+    let mut pandoc = Pandoc::new();
+
+    // Input is always a file path now
     let input_path = PathBuf::from(&options.input_path);
     if !input_path.exists() {
         return Err(format!("输入文件未找到: {}", options.input_path));
     }
-
-    let output_path = PathBuf::from(&options.output_path);
-    let output_path_str = options.output_path;
-
-    let output_format_enum = parse_output_format(&options.output_format)?;
-
-    let mut pandoc = Pandoc::new();
-
     pandoc.set_input(InputKind::Files(vec![input_path]));
 
-    // Restore input format setting logic
+    // Set input format if provided and not auto
     if let Some(ref input_format_str) = options.input_format {
         if !input_format_str.eq_ignore_ascii_case("auto") {
             let input_format_enum = parse_input_format(input_format_str)?;
@@ -92,16 +87,21 @@ fn convert_file(options: ConversionOptions) -> Result<String, String> {
         println!("未指定输入格式，使用自动检测。");
     }
 
+    // Output details
+    let output_path = PathBuf::from(&options.output_path);
+    let output_path_str = options.output_path; // No need to clone if options isn't moved
+
+    let output_format_enum = parse_output_format(&options.output_format)?;
+
     pandoc.set_output(OutputKind::File(output_path));
     pandoc.set_output_format(output_format_enum, vec![]);
-
     pandoc.add_option(PandocOption::Standalone);
 
     println!("执行 Pandoc 转换...");
     match pandoc.execute() {
         Ok(_) => {
             println!("Pandoc 转换成功。");
-            Ok(format!("转换成功！输出已保存至: {}", output_path_str)) // Keep Chinese success message
+            Ok(format!("转换成功！输出已保存至: {}", output_path_str))
         }
         Err(e) => {
             println!("Pandoc 转换失败: {:?}", e);
@@ -175,7 +175,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         // 注册两个命令
-        .invoke_handler(tauri::generate_handler![convert_file, preview_file])
+        .invoke_handler(tauri::generate_handler![
+            convert_file,
+            preview_file
+        ])
         .run(tauri::generate_context!())
         .expect("运行 Tauri 应用程序时出错");
 }

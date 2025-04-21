@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "pandoc-gui",
-        "width": 700,
-        "height": 600
+        "width": 850,
+        "height": 650
       }
     ],
     "security": {
