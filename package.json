@@ -17,6 +17,7 @@
     "cherry-markdown": "^0.9.1",
     "echarts": "^4.6.0",
     "element-plus": "^2.9.8",
+    "mathjax": "^3.2.2",
     "mermaid": "^9.4.3",
     "vue": "^3.5.13"
   },

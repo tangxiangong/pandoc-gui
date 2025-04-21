@@ -6,6 +6,11 @@ import 'cherry-markdown/dist/cherry-markdown.css';
 import CherryMermaidPlugin from 'cherry-markdown/dist/addons/cherry-code-block-mermaid-plugin';
 import mermaid from 'mermaid';
 
+// Declare MathJax on window type for TypeScript
+declare global {
+    interface Window { MathJax: any; }
+}
+
 // Define the event this component can emit
 const emit = defineEmits<{ 
   (e: 'submit-content', content: string): void;
@@ -30,11 +35,44 @@ const registerMermaidPlugin = async () => {
   console.log('Mermaid plugin registered.');
 };
 
+async function setupMathJax() {
+  // Set configuration BEFORE loading MathJax core
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    },
+    svg: {
+      fontCache: 'global'
+    },
+    startup: {
+      ready: () => {
+        console.log('MathJax is ready (offline).');
+        // Tell MathJax to start processing the page
+        window.MathJax.startup.defaultReady();
+        // Optional: Sometimes a redraw/update is needed after MathJax is fully ready
+        // cherryInstance.value?.refresh(); 
+      }
+    }
+  };
+
+  // Dynamically import MathJax core script
+  try {
+    await import('mathjax/es5/tex-svg.js');
+    console.log('MathJax script loaded (offline).');
+  } catch (error) {
+    console.error('Failed to load MathJax offline:', error);
+  }
+}
+
 const editorRef = ref<HTMLDivElement | null>(null);
 const cherryInstance = ref<Cherry | null>(null);
 const markdownContent = ref<string>('');
 
 onMounted(async () => {
+  // Setup MathJax first
+  await setupMathJax();
+
   // Register plugins before initializing Cherry
   await registerMermaidPlugin();
 
