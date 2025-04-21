@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import {
   ElMessage, ElDialog, ElTable, ElTableColumn, ElButton, ElSpace, ElText, ElCard,
@@ -177,6 +177,7 @@ async function startConversion() {
 
   // Use a copy of inputPaths for iteration in case it's modified during async operations
   const pathsToConvert = [...inputPaths.value];
+  const isSingleFile = pathsToConvert.length === 1; // Check if it's a single file conversion
 
   for (const currentPath of pathsToConvert) {
     const progressIndex = conversionProgress.value.findIndex(p => p.path === currentPath);
@@ -204,13 +205,48 @@ async function startConversion() {
           nameWithoutExt = inputBasename;
       }
       
-      const outputPath = `${inputDir}/${nameWithoutExt}.${selectedOutputFormat.value}`;
-      console.log('Generated Output Path:', outputPath); // Add log for debugging
+      let outputPath: string | null; // Declare outputPath, may be null if user cancels
+
+      if (isSingleFile) {
+        // Single file: Prompt user to save
+        const suggestedFilename = `${nameWithoutExt}.${selectedOutputFormat.value}`;
+        outputPath = await save({
+          title: '选择保存位置',
+          defaultPath: `${inputDir}/${suggestedFilename}`, // Suggest default path/filename
+          filters: [{ // Optional: Filter by selected output format
+            name: selectedOutputFormat.value.toUpperCase(),
+            extensions: [selectedOutputFormat.value]
+          }]
+        });
+
+        if (!outputPath) {
+          // User cancelled the save dialog
+          ElMessage.info(`文件 "${inputBasename}" 的转换已取消`);
+          // Reset status or remove? Let's reset for now.
+          if (progressIndex !== -1) {
+              conversionProgress.value[progressIndex].status = 'pending';
+              conversionProgress.value[progressIndex].message = '已取消';
+              conversionProgress.value[progressIndex].isSuccess = true; // Or maybe false? Depends on desired UI
+          }
+          continue; // Skip to the next file (though there's only one)
+        }
+        console.log('User selected Output Path:', outputPath);
+      } else {
+        // Multiple files: Use automatic path generation
+        outputPath = `${inputDir}/${nameWithoutExt}.${selectedOutputFormat.value}`;
+        console.log('Generated Output Path (batch):', outputPath);
+      }
+
+      // Ensure outputPath is not null before proceeding (handled by continue above for single file)
+      if (!outputPath) {
+          console.error("Unexpected null outputPath after check."); // Should not happen
+          continue;
+      }
 
       const options = {
         input_path: currentPath,
         output_format: selectedOutputFormat.value,
-        output_path: outputPath,
+        output_path: outputPath, // Use the determined path (user-selected or automatic)
         input_format: selectedInputFormat.value,
       };
 
