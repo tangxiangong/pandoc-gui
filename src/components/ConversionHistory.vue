@@ -2,8 +2,7 @@
 import { ref } from 'vue';
 import {
   ElCollapse, ElCollapseItem,
-  ElTable, ElTableColumn, ElButton, ElSpace, ElText, ElIcon
-} from 'element-plus';
+  ElTable, ElTableColumn, ElButton, ElSpace, ElText} from 'element-plus';
 import { FolderOpened, Document } from '@element-plus/icons-vue';
 import type { PropType } from 'vue';
 
@@ -97,9 +96,4 @@ const activeNames = ref<string[]>([]);
   font-weight: 500;
 } */
 
-.el-collapse-item__header {
-  /* 如果需要，可以添加样式，例如调整高度或隐藏默认边框 */
-  /* height: 30px; */ 
-  /* border-bottom: none; */
-}
 </style> 
