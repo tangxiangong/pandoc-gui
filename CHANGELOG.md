@@ -2,31 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.2] - 2025-04-22
-
-### 🚀 Features
-
-- Add Apache and MIT licenses to the project
-- Add GUI assets for application
-- Update README with application screenshots and usage instructions
-- Enhance file saving functionality in App.vue
-- Localize error and log messages in conversion functions
-- Integrate Markdown editor and MathJax support
-- Integrate MathJax support into MarkdownEditor component
-- Implement content conversion functionality in App.vue and backend
-
-### 🐛 Bug Fixes
-
-- Update GUI assets with new screenshots
-
-### 🚜 Refactor
-
-- Improve error message formatting in output format parsing
-
-### ⚙️ Miscellaneous Tasks
-
-- Bump version to 0.1.2 in package and configuration files
-
 ## [0.1.1] - 2025-04-21
 
 ### 🚀 Features
