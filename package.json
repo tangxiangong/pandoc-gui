@@ -14,12 +14,11 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.2.1",
     "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-shell": "^2.2.1",
     "cherry-markdown": "^0.9.1",
-    "echarts": "^4.6.0",
+    "echarts": "^5.6.0",
     "element-plus": "^2.9.8",
     "mathjax": "^3.2.2",
-    "mermaid": "^9.4.3",
+    "mermaid": "^11.6",
     "vue": "^3.5.13"
   },
   "devDependencies": {
