@@ -492,17 +492,17 @@ function clearHistory() {
 
 <template>
   <el-container style="height: 100vh;">
-    <el-main style="padding: 20px; display: flex; justify-content: center;">
-      <div style="max-width: 800px; width: 100%;">
-        <div v-show="!showEditor">
-          <el-card shadow="never" style="margin-bottom: 20px;" :body-style="{ padding: '25px' }">
+    <el-main style="padding: 20px; display: flex; flex-direction: column;">
+      <div style="width: 100%; flex-grow: 1; display: flex; flex-direction: column;">
+        <div v-show="!showEditor" style="flex-grow: 1; display: flex; flex-direction: column;">
+          <el-card shadow="never" style="margin-bottom: 20px; flex-grow: 1; display: flex; flex-direction: column;" :body-style="{ padding: '25px', flexGrow: 1, display: 'flex', flexDirection: 'column' }">
             <template #header>
               <div style="text-align: center;">
                 <h1 style="margin: 0; font-size: 1.8em; color: #409EFF;">Pandoc GUI</h1>
               </div>
             </template>
 
-            <el-space direction="vertical" alignment="stretch" :size="18" style="width: 100%;">
+            <el-space direction="vertical" alignment="stretch" :size="18" style="width: 100%; flex-grow: 1; display: flex; flex-direction: column;">
 
               <el-button @click="selectFile" :disabled="isLoading || isPreviewLoading" size="large" style="width: 100%;">
                  选择输入文件 (可多选)
@@ -514,14 +514,14 @@ function clearHistory() {
 
               <!-- Styled Dropzone Hint -->
               <div class="dropzone-hint">
-                或将文件拖拽到此处
+                  或将文件拖拽到此处
               </div>
 
               <!-- Combined File List & Status Table -->
-              <div v-if="hasInput" class="file-status-table-container" style="margin-top: 10px;">
-                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div v-if="hasInput" class="file-status-table-container" style="margin-top: 10px; flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto;">
+                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-shrink: 0;">
                       <el-text size="default">{{ isUsingEditorContent ? '编辑器内容状态:' : '文件列表 & 状态:' }}</el-text>
-                       <el-button v-if="hasFiles" 
+                       <el-button v-if="hasFiles"
                            type="warning"
                            link
                            size="small"
@@ -605,14 +605,14 @@ function clearHistory() {
                       </el-table-column>
                    </el-table>
                </div>
-       
-              <el-divider v-if="hasInput" style="margin: 10px 0;">
+
+              <el-divider v-if="hasInput" style="margin: 10px 0; flex-shrink: 0;">
                  <el-text v-if="isUsingEditorContent" type="success" size="small">当前使用编辑器内容</el-text>
                  <span v-else>&nbsp;</span> <!-- Or just empty divider -->
               </el-divider>
-       
+
                <!-- Format Selection -->
-               <el-form-item label="输入格式:" style="margin-bottom: 0;">
+               <el-form-item label="输入格式:" style="margin-bottom: 0; flex-shrink: 0;">
                 <el-select v-model="selectedInputFormat" placeholder="选择输入格式 (默认自动)" :disabled="isLoading || isPreviewLoading || isUsingEditorContent" style="width: 100%;">
                    <el-option
                      v-for="format in availableInputFormats"
@@ -622,8 +622,8 @@ function clearHistory() {
                    />
                 </el-select>
                </el-form-item>
-       
-               <el-form-item label="输出格式:" style="margin-bottom: 0;">
+
+               <el-form-item label="输出格式:" style="margin-bottom: 0; flex-shrink: 0;">
                  <el-select
                    v-model="selectedOutputFormat"
                    placeholder="选择输出格式"
@@ -638,8 +638,8 @@ function clearHistory() {
                    />
                  </el-select>
                </el-form-item>
-       
-               <div style="display: flex; gap: 10px;">
+
+               <div style="display: flex; gap: 10px; flex-shrink: 0;">
                  <el-button
                    @click="generatePreview"
                    :disabled="!hasInput || hasMultipleFiles || isUsingEditorContent || isLoading || isPreviewLoading"
@@ -666,7 +666,7 @@ function clearHistory() {
           </el-card>
 
           <!-- History Section Card -->
-          <el-card v-if="conversionHistory.length > 0" shadow="never" style="margin-top: 20px;" :body-style="{ padding: '15px' }">
+          <el-card v-if="conversionHistory.length > 0" shadow="never" style="margin-top: 20px; flex-shrink: 0;" :body-style="{ padding: '15px' }">
             <template #header>
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-weight: 500;">转换历史记录</span>
@@ -676,7 +676,7 @@ function clearHistory() {
               </div>
             </template>
             <!-- History Component (now inside the card body) -->
-            <conversion-history 
+            <conversion-history
               :history="conversionHistory"
               :on-open-file="openConvertedFile"
               :on-show-folder="showInFolder"
@@ -698,12 +698,13 @@ function clearHistory() {
         </div> <!-- End v-show="!showEditor" -->
 
         <!-- Editor View -->
-        <div v-show="showEditor">
-          <div style="max-width: 800px; width: 100%;">
-              <markdown-editor 
-                  @submit-content="handleEditorSubmit" 
-                  @cancel="showEditor = false" 
-                  :show-cancel-button="true" 
+        <div v-show="showEditor" style="flex-grow: 1; display: flex; flex-direction: column;">
+          <div style="width: 100%; flex-grow: 1; display: flex;">
+              <markdown-editor
+                  @submit-content="handleEditorSubmit"
+                  @cancel="showEditor = false"
+                  :show-cancel-button="true"
+                  style="flex-grow: 1;"
               />
           </div>
         </div> <!-- End v-show="showEditor" -->
