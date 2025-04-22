@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import {
   ElMessage, ElDialog, ElTable, ElTableColumn, ElButton, ElSpace, ElText, ElCard,
-  ElContainer, ElMain, ElFormItem, ElSelect, ElOption, ElDivider, ElIcon
-} from 'element-plus';
-import { Loading, Close, EditPen } from '@element-plus/icons-vue';
+  ElContainer, ElMain, ElFormItem, ElSelect, ElOption, ElDivider, ElIcon} from 'element-plus';
+import { Loading, Close, EditPen, FolderOpened, Document } from '@element-plus/icons-vue';
 import { basename, dirname } from '@tauri-apps/api/path';
 import { listen, TauriEvent, Event } from '@tauri-apps/api/event';
 import type { PhysicalPosition } from '@tauri-apps/api/window';
 import MarkdownEditor from './components/MarkdownEditor.vue'; // Import the editor component
+import ConversionHistory from './components/ConversionHistory.vue'; // Import history component
 
 // Define an interface for the expected drop payload structure
 interface DropPayload {
@@ -24,6 +24,7 @@ interface ConversionStatus {
   status: 'pending' | 'converting' | 'success' | 'error';
   message: string;
   isSuccess: boolean; // Kept for easier conditional styling
+  outputPath?: string; // Add optional outputPath for successful conversions
 }
 
 // --- State Updates ---
@@ -37,6 +38,7 @@ const showPreviewDialog = ref<boolean>(false);
 const previewHtml = ref<string>("");
 const showEditor = ref<boolean>(false); // State to toggle editor visibility
 const editorContent = ref<string | null>(null); // Re-introduce state for editor content (local)
+const conversionHistory = ref<ConversionStatus[]>([]); // State for history
 
 const availableInputFormats = ["auto", "markdown", "html", "latex", "rst", "docx", "epub"];
 const availableOutputFormats = ["docx", "html", "pdf", "tex", "md", "odt", "rst", "epub"];
@@ -237,6 +239,8 @@ async function startConversion() {
         conversionProgress.value[0].status = 'success';
         conversionProgress.value[0].message = result || '转换成功';
         conversionProgress.value[0].isSuccess = true;
+        conversionProgress.value[0].outputPath = outputPath;
+        conversionHistory.value.unshift({ ...conversionProgress.value[0] }); // Add to history
         ElMessage.success("编辑器内容转换成功！");
 
     } catch (error: any) {
@@ -351,6 +355,8 @@ async function startConversion() {
           conversionProgress.value[currentIndex].status = 'success';
           conversionProgress.value[currentIndex].message = result || '转换成功';
           conversionProgress.value[currentIndex].isSuccess = true;
+          conversionProgress.value[currentIndex].outputPath = outputPath;
+          conversionHistory.value.unshift({ ...conversionProgress.value[currentIndex] }); // Add to history
           successCount++;
       } else {
           console.warn(`File ${currentPath} conversion succeeded but entry was removed.`);
@@ -384,10 +390,43 @@ async function startConversion() {
   }
 }
 
+// --- New functions to handle opening file/folder ---
+async function openConvertedFile(outputPath: string | undefined) {
+    if (!outputPath) {
+        ElMessage.error("无法获取文件路径");
+        return;
+    }
+    try {
+        console.log(`尝试打开文件: ${outputPath}`);
+        await invoke('open_file_in_default_app', { path: outputPath });
+    } catch (error) {
+        console.error(`打开文件 ${outputPath} 出错:`, error);
+        ElMessage.error(`打开文件失败: ${error}`);
+    }
+}
+
+async function showInFolder(outputPath: string | undefined) {
+    if (!outputPath) {
+        ElMessage.error("无法获取文件路径");
+        return;
+    }
+    try {
+        const dir = await dirname(outputPath);
+        console.log(`尝试打开文件夹: ${dir}`);
+        await invoke('show_in_folder', { path: dir });
+    } catch (error) {
+        console.error(`打开文件夹 ${outputPath} 出错:`, error);
+        ElMessage.error(`打开文件夹失败: ${error}`);
+    }
+}
+
 // Setup drag and drop listener
 let unlistenDragDrop: (() => void) | null = null;
 
 onMounted(async () => {
+  // Load history when component mounts
+  await loadHistoryFromDisk();
+
   try {
     unlistenDragDrop = await listen<DropPayload>(TauriEvent.DRAG_DROP, (event: Event<DropPayload>) => {
       if (event.payload?.paths?.length > 0) {
@@ -410,14 +449,53 @@ onUnmounted(() => {
   }
 });
 
+// --- History Persistence ---
+
+// Function to load history from Rust backend
+async function loadHistoryFromDisk() {
+  try {
+    // Use the existing ConversionStatus interface for the expected type from backend
+    const loadedHistory: ConversionStatus[] = await invoke('load_history'); 
+    conversionHistory.value = loadedHistory || []; // Update state, ensure it's an array
+    console.log(`成功加载 ${conversionHistory.value.length} 条历史记录。`);
+  } catch (error) {
+    console.error("加载历史记录失败:", error);
+    ElMessage.error(`加载历史记录失败: ${error}`);
+    conversionHistory.value = []; // Reset to empty on error
+  }
+}
+
+// Watch for changes in history and save to disk
+watch(conversionHistory, async (newHistory) => {
+  try {
+    await invoke('save_history', { history: newHistory });
+    console.log(`历史记录已保存 (${newHistory.length} 条)。`);
+  } catch (error) {
+    console.error("保存历史记录失败:", error);
+    // Optionally notify user, but might be too noisy
+    // ElMessage.error(`保存历史记录失败: ${error}`); 
+  }
+}, { deep: true }); // Use deep watch as we modify items within the array indirectly
+
+// --- Function to clear history ---
+function clearHistory() {
+  if (conversionHistory.value.length > 0) {
+    conversionHistory.value = [];
+    ElMessage.success('历史记录已清空');
+    // The watch effect will automatically call save_history
+  } else {
+    ElMessage.info('历史记录已经是空的');
+  }
+}
+
 </script>
 
 <template>
   <el-container style="height: 100vh;">
-    <el-main style="padding: 20px;">
-      <div>
+    <el-main style="padding: 20px; display: flex; justify-content: center;">
+      <div style="max-width: 800px; width: 100%;">
         <div v-show="!showEditor">
-          <el-card shadow="never" style="max-width: 800px; width: 100%; margin-top: 20px;" :body-style="{ padding: '25px' }">
+          <el-card shadow="never" style="margin-bottom: 20px;" :body-style="{ padding: '25px' }">
             <template #header>
               <div style="text-align: center;">
                 <h1 style="margin: 0; font-size: 1.8em; color: #409EFF;">Pandoc GUI</h1>
@@ -479,21 +557,50 @@ onUnmounted(() => {
                           </template>
                       </el-table-column>
                        <!-- Actions Column -->
-                      <el-table-column label="操作" width="80" align="center">
+                      <el-table-column label="操作" width="180" align="center">
                           <template #default="scope">
+                              <!-- Show action buttons only on success -->
+                              <el-space v-if="scope.row.status === 'success' && scope.row.outputPath">
+                                   <el-button
+                                        type="primary"
+                                        :icon="Document"
+                                        link
+                                        size="small"
+                                        @click="openConvertedFile(scope.row.outputPath)"
+                                        :disabled="isLoading"
+                                        title="打开文件"
+                                    >
+                                      打开
+                                    </el-button>
+                                    <el-button
+                                        type="success"
+                                        :icon="FolderOpened"
+                                        link
+                                        size="small"
+                                        @click="showInFolder(scope.row.outputPath)"
+                                        :disabled="isLoading"
+                                        title="打开所在文件夹"
+                                    >
+                                       文件夹
+                                    </el-button>
+                              </el-space>
+
+                              <!-- Show remove button only for files (not editor content) and when not successful or no output path -->
                                <el-button
+                                v-if="!isUsingEditorContent && (scope.row.status !== 'success' || !scope.row.outputPath)"
                                 type="danger"
                                 :icon="Close"
                                 link
                                 size="small"
                                 @click="removeFileByPath(scope.row.path)"
                                 :disabled="isLoading"
-                                title="移除此文件" 
-                                v-if="!isUsingEditorContent" 
+                                title="移除此文件"
                              >
                                     移除
                                  </el-button>
-                                 <el-text v-else size="small" type="info">-</el-text> <!-- Placeholder for action when editor content used -->
+
+                                <!-- Placeholder for editor content or non-successful items -->
+                                 <el-text v-else-if="isUsingEditorContent || (scope.row.status !== 'success' && !scope.row.outputPath)" size="small" type="info">-</el-text>
                           </template>
                       </el-table-column>
                    </el-table>
@@ -556,6 +663,24 @@ onUnmounted(() => {
                </div>
 
             </el-space>
+          </el-card>
+
+          <!-- History Section Card -->
+          <el-card v-if="conversionHistory.length > 0" shadow="never" style="margin-top: 20px;" :body-style="{ padding: '15px' }">
+            <template #header>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 500;">转换历史记录</span>
+                <el-button type="danger" link @click="clearHistory" size="small">
+                  清空历史记录
+                </el-button>
+              </div>
+            </template>
+            <!-- History Component (now inside the card body) -->
+            <conversion-history 
+              :history="conversionHistory"
+              :on-open-file="openConvertedFile"
+              :on-show-folder="showInFolder"
+            />
           </el-card>
 
           <!-- Preview Dialog -->
