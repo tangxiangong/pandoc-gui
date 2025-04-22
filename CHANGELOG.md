@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2025-04-22
+
+### 🚜 Refactor
+
+- Improve layout and styling in App.vue
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump version to 0.1.3 in package.json and package-lock.json
+
 ## [0.1.2] - 2025-04-22
 
 ### 🚀 Features
@@ -15,11 +25,14 @@ All notable changes to this project will be documented in this file.
 - Integrate MathJax support into MarkdownEditor component
 - Implement content conversion functionality in App.vue and backend
 - Add conversion history management and UI components
+- Add @tauri-apps/plugin-shell dependency
 - Add file and folder management commands, and history tracking
+- Release version 0.1.2 with new features and improvements
 
 ### 🐛 Bug Fixes
 
 - Update GUI assets with new screenshots
+- Clean up unused styles and imports in ConversionHistory.vue
 
 ### 🚜 Refactor
 
@@ -31,6 +44,10 @@ All notable changes to this project will be documented in this file.
 - Add CHANGELOG and configuration for git-cliff
 - Update dependencies in Cargo.toml and Cargo.lock
 - Update CHANGELOG to remove version 0.1.2 details
+- Update dependencies in package.json
+- Update dirs dependency to version 6.0.0 in Cargo.toml and Cargo.lock
+- Update package dependencies in package.json and package-lock.json
+- Update tauri dependency configuration in Cargo.toml
 
 ## [0.1.1] - 2025-04-21
 
