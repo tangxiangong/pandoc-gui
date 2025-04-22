@@ -10,8 +10,14 @@ fn parse_output_format(format_str: &str) -> Result<OutputFormat, String> {
     match format_str.to_lowercase().as_str() {
         "docx" => Ok(OutputFormat::Docx),
         "html" | "html5" => Ok(OutputFormat::Html5),
-        "html4" => Err("Html4 输出格式名称不确定或可能不直接支持。请尝试 Html5 或检查 pandoc crate 文档。".to_string()),
-        "pdf" => Err("直接通过 crate 输出 PDF 需要特定引擎设置。请使用中间格式（如 LaTeX 或 HTML）。".to_string()),
+        "html4" => Err(
+            "Html4 输出格式名称不确定或可能不直接支持。请尝试 Html5 或检查 pandoc crate 文档。"
+                .to_string(),
+        ),
+        "pdf" => Err(
+            "直接通过 crate 输出 PDF 需要特定引擎设置。请使用中间格式（如 LaTeX 或 HTML）。"
+                .to_string(),
+        ),
         "tex" | "latex" => Ok(OutputFormat::Latex),
         "md" | "markdown" => Ok(OutputFormat::Markdown),
         "rst" => Ok(OutputFormat::Rst),
@@ -180,10 +186,7 @@ fn preview_file(options: PreviewOptions) -> Result<String, String> {
         if !input_format_str.eq_ignore_ascii_case("auto") {
             let input_format_enum = parse_input_format(input_format_str)?;
             pandoc.set_input_format(input_format_enum, vec![]);
-            println!(
-                "预览: 显式设置输入格式为: {}",
-                input_format_str
-            );
+            println!("预览: 显式设置输入格式为: {}", input_format_str);
         }
     }
 
