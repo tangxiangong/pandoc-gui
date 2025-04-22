@@ -79,7 +79,7 @@ onMounted(async () => {
   if (editorRef.value) {
     cherryInstance.value = new Cherry({
       id: 'markdown-editor-container',
-      value: '# 开始编辑 Markdown\n\n使用 MathJax：\n\n内联公式 $E=mc^2$ 测试。\n\n块公式：\n$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$\n', // Initial content with Math examples
+      value: '', // Clear initial content
       // 其他 Cherry 配置项...
       // 例如，设置编辑器模式、工具栏等
       // See https://github.com/Tencent/cherry-markdown/wiki/Configuration
