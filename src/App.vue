@@ -754,7 +754,7 @@ function getBaseName(path: string | undefined): string {
       <el-space :size="10" spacer="|">
         <el-space :size="5">
             <el-text size="small" type="info">Pandoc GUI</el-text>
-            <el-text size="small" type="secondary">- 一个简单的 Pandoc 图形界面</el-text>
+            <el-text size="small" type="info">- 一个简单的 Pandoc 图形界面</el-text>
         </el-space>
         <el-space :size="5">
             <el-tooltip content="使用 MIT 许可证开源" placement="top">
