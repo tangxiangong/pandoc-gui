@@ -2,15 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.3] - 2025-04-22
+## [0.1.3] - 2025-04-23
+
+### 🚀 Features
+
+- Enhance App.vue and MarkdownEditor.vue with new features
+- Add PDF input check and improve error handling in conversion functions
 
 ### 🚜 Refactor
 
 - Improve layout and styling in App.vue
+- Clean up unused styles in App.vue
 
 ### ⚙️ Miscellaneous Tasks
 
 - Bump version to 0.1.3 in package.json and package-lock.json
+- Update CHANGELOG for version 0.1.3 release
+- Add @element-plus/icons-vue dependency in package.json
+- Bump pandoc-gui version to 0.1.3 in Cargo.toml and Cargo.lock
+- Update version in tauri.conf.json to 0.1.3
 
 ## [0.1.2] - 2025-04-22
 
