@@ -787,12 +787,6 @@ body {
   display: flex; /* Helps center content if needed */
 }
 
-/* Main container adjustments */
-.el-container {
-  /* max-width: 1000px; /* Optional: Limit max width for very large screens */
-  /* margin: 0 auto; /* Center the container if max-width is set */
-}
-
 /* Main card styling */
 .main-card {
   margin-bottom: 20px;
