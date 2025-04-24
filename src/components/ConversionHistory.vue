@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import {
   ElCollapse, ElCollapseItem,
   ElTable, ElTableColumn, ElButton, ElSpace, ElText} from 'element-plus';
-import { FolderOpened, Document } from '@element-plus/icons-vue';
+import { FolderOpened, Document, Delete } from '@element-plus/icons-vue';
 import type { PropType } from 'vue';
 
 // Define the structure of a history item (same as ConversionStatus in App.vue)
@@ -27,6 +27,10 @@ const props = defineProps({
   },
   onShowFolder: {
     type: Function as PropType<(outputPath: string | undefined) => void>,
+    required: true,
+  },
+  onDeleteItem: {
+    type: Function as PropType<(item: HistoryEntry) => void>,
     required: true,
   },
 });
@@ -58,28 +62,32 @@ const activeNames = ref<string[]>([]);
           </template>
         </el-table-column>
         <!-- Actions Column -->
-        <el-table-column label="操作" width="180" align="center">
+        <el-table-column label="操作" width="280" align="center">
           <template #default="scope">
-            <el-space v-if="scope.row.outputPath">
+            <el-space v-if="scope.row.outputPath" :size="4">
               <el-button
                 type="primary"
                 :icon="Document"
-                link
-                size="small"
+                size="default"
                 @click="() => props.onOpenFile(scope.row.outputPath)"
-                title="打开文件"
               >
                 打开
               </el-button>
               <el-button
                 type="success"
                 :icon="FolderOpened"
-                link
-                size="small"
+                size="default"
                 @click="() => props.onShowFolder(scope.row.outputPath)"
-                title="打开所在文件夹"
               >
                 文件夹
+              </el-button>
+              <el-button
+                type="danger"
+                :icon="Delete"
+                size="default"
+                @click="() => props.onDeleteItem(scope.row)"
+              >
+                删除
               </el-button>
             </el-space>
             <el-text v-else size="small" type="info">-</el-text>
@@ -96,4 +104,8 @@ const activeNames = ref<string[]>([]);
   font-weight: 500;
 } */
 
+/* Ensure vertical alignment in table cells */
+.el-table :deep(td) {
+  vertical-align: middle;
+}
 </style> 

@@ -14,6 +14,7 @@ declare global {
 // Define the event this component can emit
 const emit = defineEmits<{ 
   (e: 'submit-content', content: string): void;
+  (e: 'save-content', content: string): void; // Add save event
   (e: 'cancel'): void; // Add cancel event
 }>();
 
@@ -141,6 +142,14 @@ function cancelEdit() {
   emit('cancel');
 }
 
+// Function to emit save event
+function saveContent() {
+  if (cherryInstance.value) {
+    const currentContent = cherryInstance.value.getMarkdown();
+    emit('save-content', currentContent);
+  }
+}
+
 </script>
 
 <template>
@@ -149,6 +158,7 @@ function cancelEdit() {
     <div class="editor-actions">
       <!-- Add Cancel button -->
       <button v-if="props.showCancelButton" @click="cancelEdit" class="button-cancel">返回</button>
+      <button @click="saveContent" class="button-save">保存 Markdown</button>
       <button @click="submitContent" class="button-submit">使用编辑器内容</button>
     </div>
   </div>
@@ -197,6 +207,14 @@ function cancelEdit() {
 
 .button-cancel:hover {
   background-color: #a6a9ad;
+}
+
+.button-save {
+  background-color: #67C23A; /* Green color for save */
+}
+
+.button-save:hover {
+  background-color: #85ce61;
 }
 
 /* Ensure Cherry editor takes full height/width within its container */

@@ -508,6 +508,20 @@ function clearHistory() {
   }
 }
 
+// --- Function to delete a specific history item ---
+function deleteHistoryItem(itemToDelete: ConversionStatus) {
+  const index = conversionHistory.value.findIndex(item => 
+    item.path === itemToDelete.path && item.outputPath === itemToDelete.outputPath
+  );
+  if (index !== -1) {
+    conversionHistory.value.splice(index, 1);
+    ElMessage.success('已删除历史记录');
+  } else {
+    ElMessage.warning('未找到要删除的历史记录');
+  }
+  // The watch effect on conversionHistory will handle saving the updated list
+}
+
 // --- Helper function for template ---
 function getBaseName(path: string | undefined): string {
     if (!path) return '';
@@ -515,6 +529,35 @@ function getBaseName(path: string | undefined): string {
     const separator = path.includes('/') ? '/' : '\\';
     const parts = path.split(separator);
     return parts[parts.length - 1] || path; // Return last part or original if split fails
+}
+
+// --- Function to handle saving editor content ---
+async function handleEditorSave(content: string) {
+  if (!content || content.trim() === '') {
+    ElMessage.warning('编辑器内容为空，无法保存。');
+    return;
+  }
+  try {
+    const outputPath = await save({
+      title: '保存 Markdown 文件',
+      defaultPath: 'untitled.md', // Default filename
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    });
+
+    if (!outputPath) {
+      ElMessage.info('保存已取消');
+      return;
+    }
+
+    // Invoke a *new* backend command to save the raw content
+    // We assume a function `save_raw_content` exists in Rust
+    await invoke('save_raw_content', { path: outputPath, content: content });
+    ElMessage.success(`Markdown 文件已保存到: ${outputPath}`);
+
+  } catch (error) {
+    console.error('保存 Markdown 文件出错:', error);
+    ElMessage.error(`保存文件失败: ${error}`);
+  }
 }
 
 </script>
@@ -555,7 +598,6 @@ function getBaseName(path: string | undefined): string {
                         <el-text size="default" style="font-weight: 500;">{{ isUsingEditorContent ? '编辑器内容状态' : '文件列表 & 状态' }}</el-text>
                          <el-button v-if="hasFiles"
                              type="danger"
-                             link
                              size="small"
                              @click="clearAllFiles"
                              :disabled="isLoading"
@@ -603,41 +645,40 @@ function getBaseName(path: string | undefined): string {
                                    <el-text v-else size="small" type="info">-</el-text>
                                </template>
                           </el-table-column>
-                           <el-table-column label="操作" width="150" align="center" class-name="action-column">
+                           <el-table-column label="操作" width="180" align="center" class-name="action-column">
                               <template #default="scope">
                                   <el-space v-if="scope.row.status === 'success' && scope.row.outputPath" :size="4">
                                        <el-button
                                             type="primary"
                                             :icon="Document"
-                                            link
-                                            size="small"
+                                            size="default"
                                             @click="openConvertedFile(scope.row.outputPath)"
                                             :disabled="isLoading"
-                                            title="打开文件"
-                                        />
+                                            >
+                                              打开
+                                           </el-button>
                                         <el-button
                                             type="success"
                                             :icon="FolderOpened"
-                                            link
-                                            size="small"
+                                            size="default"
                                             @click="showInFolder(scope.row.outputPath)"
                                             :disabled="isLoading"
-                                            title="打开所在文件夹"
-                                        />
+                                            >
+                                              文件夹
+                                           </el-button>
                                   </el-space>
-                                  <el-space :size="2" v-if="!isUsingEditorContent && (scope.row.status !== 'success' || !scope.row.outputPath) && scope.row.status !== 'converting'">
+                                  <el-space :size="2" v-else-if="!isUsingEditorContent && scope.row.status !== 'converting' && scope.row.status !== 'success'">
                                       <el-button
                                           type="danger"
                                           :icon="Close"
-                                          link
-                                          size="small"
+                                          size="default"
                                           @click="removeFileByPath(scope.row.path)"
                                           :disabled="isLoading"
-                                          title="移除此文件"
-                                      />
-                                      <el-text type="danger" size="small">移除</el-text>
+                                      >
+                                          移除
+                                      </el-button>
                                   </el-space>
-                                  <span v-else-if="isUsingEditorContent || (scope.row.status !== 'success' && !scope.row.outputPath && scope.row.status !== 'converting')">-</span>
+                                  <span v-else>-</span>
                               </template>
                           </el-table-column>
                        </el-table>
@@ -719,6 +760,7 @@ function getBaseName(path: string | undefined): string {
               :history="conversionHistory"
               :on-open-file="openConvertedFile"
               :on-show-folder="showInFolder"
+              :on-delete-item="deleteHistoryItem"
             />
           </el-card>
 
@@ -739,6 +781,7 @@ function getBaseName(path: string | undefined): string {
           <div class="editor-wrapper">
               <markdown-editor
                   @submit-content="handleEditorSubmit"
+                  @save-content="handleEditorSave"
                   @cancel="showEditor = false"
                   :show-cancel-button="true"
                   style="flex-grow: 1; height: 100%; border: 1px solid #dcdfe6; border-radius: 4px;"
