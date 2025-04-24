@@ -280,6 +280,13 @@ struct HistoryEntry {
     output_path: Option<String>, // 输出路径 (应该是 Some)
 }
 
+// --- 新结构体：用于保存原始内容 ---
+#[derive(serde::Deserialize)]
+struct SaveContentOptions {
+    path: String,
+    content: String,
+}
+
 const HISTORY_FILE_NAME: &str = "conversion_history.json";
 
 // --- 获取历史文件路径的辅助函数 (使用 dirs crate) ---
@@ -356,6 +363,23 @@ fn save_history(app_handle: AppHandle, history: Vec<HistoryEntry>) -> Result<(),
     Ok(())
 }
 
+// --- 新命令：保存原始内容到文件 ---
+#[tauri::command]
+fn save_raw_content(options: SaveContentOptions) -> Result<(), String> {
+    println!("尝试将内容保存到: {}", options.path);
+    match fs::write(&options.path, &options.content) {
+        Ok(_) => {
+            println!("内容已成功保存到: {}", options.path);
+            Ok(())
+        }
+        Err(e) => {
+            let error_msg = format!("无法将内容写入文件 '{}': {}", options.path, e);
+            println!("文件写入失败: {}", error_msg);
+            Err(error_msg)
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -369,7 +393,8 @@ pub fn run() {
             open_file_in_default_app, // 注册新命令
             show_in_folder,           // 注册新命令
             load_history,             // 注册加载历史记录命令
-            save_history              // 注册保存历史记录命令
+            save_history,             // 注册保存历史记录命令
+            save_raw_content          // 注册保存原始内容命令
         ])
         .run(tauri::generate_context!())
         .expect("运行 Tauri 应用程序时出错");
