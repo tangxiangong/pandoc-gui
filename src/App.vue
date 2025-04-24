@@ -12,89 +12,78 @@ import { Loading, Close, EditPen, FolderOpened, Document } from '@element-plus/i
 import { basename, dirname } from '@tauri-apps/api/path';
 import { listen, TauriEvent, Event } from '@tauri-apps/api/event';
 import type { PhysicalPosition } from '@tauri-apps/api/window';
-import MarkdownEditor from './components/MarkdownEditor.vue'; // Import the editor component
-import ConversionHistory from './components/ConversionHistory.vue'; // Import history component
+import MarkdownEditor from './components/MarkdownEditor.vue';
+import ConversionHistory from './components/ConversionHistory.vue';
 
-// Define an interface for the expected drop payload structure
 interface DropPayload {
   paths: string[];
   position: PhysicalPosition;
+  outputPath?: string;
 }
 
-// State for individual file conversion progress/status
 interface ConversionStatus {
   path: string;
   status: 'pending' | 'converting' | 'success' | 'error';
   message: string;
-  isSuccess: boolean; // Kept for easier conditional styling
-  outputPath?: string; // Add optional outputPath for successful conversions
+  isSuccess: boolean;
+  outputPath?: string;
 }
 
-// --- State Updates ---
-const inputPaths = ref<string[]>([]); // Keep this to easily check which paths are selected
-const conversionProgress = ref<ConversionStatus[]>([]); // This will be the source for the table
+const inputPaths = ref<string[]>([]);
+const conversionProgress = ref<ConversionStatus[]>([]);
 const selectedOutputFormat = ref<string>("docx");
 const selectedInputFormat = ref<string>("auto");
-const isLoading = ref<boolean>(false); // Loading state for the whole batch
+const isLoading = ref<boolean>(false);
 const isPreviewLoading = ref<boolean>(false);
 const showPreviewDialog = ref<boolean>(false);
 const previewHtml = ref<string>("");
-const showEditor = ref<boolean>(false); // State to toggle editor visibility
-const editorContent = ref<string | null>(null); // Re-introduce state for editor content (local)
-const conversionHistory = ref<ConversionStatus[]>([]); // State for history
-const appVersion = ref<string>('N/A'); // State for app version
+const showEditor = ref<boolean>(false);
+const editorContent = ref<string | null>(null);
+const conversionHistory = ref<ConversionStatus[]>([]);
+const appVersion = ref<string>('N/A');
 
 const availableInputFormats = ["auto", "markdown", "html", "latex", "rst", "docx", "epub"];
-const availableOutputFormats = ["docx", "html", /*"pdf",*/ "tex", "md", "odt", "rst", "epub"];
+const availableOutputFormats = ["docx", "html", "tex", "md", "odt", "rst", "epub"];
 
-// Computed properties
 const hasMultipleFiles = computed(() => inputPaths.value.length > 1);
 const hasFiles = computed(() => inputPaths.value.length > 0);
-const hasEditorContent = computed(() => editorContent.value !== null && editorContent.value.length > 0); // Computed property for editor content
-const hasInput = computed(() => hasFiles.value || hasEditorContent.value); // Combined check
-const isUsingEditorContent = computed(() => !hasFiles.value && hasEditorContent.value); // True if only editor content is present
+const hasEditorContent = computed(() => editorContent.value !== null && editorContent.value.length > 0);
+const hasInput = computed(() => hasFiles.value || hasEditorContent.value);
+const isUsingEditorContent = computed(() => !hasFiles.value && hasEditorContent.value);
 
-// --- Function Updates ---
-
-// Helper to add a file and its initial progress state
 function addFileAndProgress(filePath: string): boolean {
-    // --- PDF Check --- 
-    const isPdf = filePath.toLowerCase().endsWith('.pdf');
-    if (isPdf) {
-        ElMessage.warning(`不支持直接转换 PDF 文件: ${filePath}`);
-        return false; // Indicate file was *not* added
-    }
-    // --- End PDF Check --- 
+  const isPdf = filePath.toLowerCase().endsWith('.pdf');
+  if (isPdf) {
+    ElMessage.warning(`不支持直接转换 PDF 文件: ${filePath}`);
+    return false;
+  }
 
-    // If editor content exists, clear it when adding files
-    if (hasEditorContent.value) {
-        editorContent.value = null;
-        conversionProgress.value = []; // Clear progress table too
-    }
-    if (!inputPaths.value.includes(filePath)) {
-        inputPaths.value.push(filePath);
-        conversionProgress.value.push({
-            path: filePath,
-            status: 'pending',
-            message: '待处理',
-            isSuccess: true, // Default to true until error
-        });
-        return true; // Indicate file was added
-    }
-    return false; // Indicate file was already present
+  if (hasEditorContent.value) {
+    editorContent.value = null;
+    conversionProgress.value = [];
+  }
+  if (!inputPaths.value.includes(filePath)) {
+    inputPaths.value.push(filePath);
+    conversionProgress.value.push({
+      path: filePath,
+      status: 'pending',
+      message: '待处理',
+      isSuccess: true,
+    });
+    return true;
+  }
+  return false;
 }
 
-// Function to remove a file from both lists using its path
 function removeFileByPath(filePathToRemove: string) {
-    const indexInPaths = inputPaths.value.indexOf(filePathToRemove);
-    if (indexInPaths !== -1) {
-        inputPaths.value.splice(indexInPaths, 1);
-    }
-    // Find index in progress by path and remove
-    const indexInProgress = conversionProgress.value.findIndex(p => p.path === filePathToRemove);
-    if (indexInProgress !== -1) {
-        conversionProgress.value.splice(indexInProgress, 1);
-    }
+  const indexInPaths = inputPaths.value.indexOf(filePathToRemove);
+  if (indexInPaths !== -1) {
+    inputPaths.value.splice(indexInPaths, 1);
+  }
+  const indexInProgress = conversionProgress.value.findIndex(p => p.path === filePathToRemove);
+  if (indexInProgress !== -1) {
+    conversionProgress.value.splice(indexInProgress, 1);
+  }
 }
 
 function clearAllFiles() {
@@ -102,23 +91,19 @@ function clearAllFiles() {
   conversionProgress.value = [];
 }
 
-// Function to handle editor content submission
 function handleEditorSubmit(content: string) {
   console.log('Received content from local editor component:', content);
-  // Clear existing file list and progress
   inputPaths.value = [];
   conversionProgress.value = [];
-  // Set the editor content
   editorContent.value = content;
-  selectedInputFormat.value = "markdown"; // Force input format to markdown
-  // Add a placeholder entry to conversionProgress to indicate editor input
+  selectedInputFormat.value = "markdown";
   conversionProgress.value.push({
-      path: '[编辑器内容]', // Placeholder path
-      status: 'pending',
-      message: '待处理 (来自编辑器)',
-      isSuccess: true,
+    path: '[编辑器内容]',
+    status: 'pending',
+    message: '待处理 (来自编辑器)',
+    isSuccess: true,
   });
-  showEditor.value = false; // Hide editor after submission
+  showEditor.value = false;
   ElMessage.success('已从编辑器加载内容');
 }
 
@@ -133,20 +118,19 @@ async function selectFile() {
     if (Array.isArray(selected)) {
       selected.forEach(path => {
         if (addFileAndProgress(path)) {
-            addedCount++;
+          addedCount++;
         }
       });
     } else if (typeof selected === 'string') {
       if (addFileAndProgress(selected)) {
-          addedCount++;
+        addedCount++;
       }
-    } // Ignore null (cancel)
-
-    if (addedCount > 0) {
-        previewHtml.value = ''; // Clear preview if new files are added
-        ElMessage.success(`已添加 ${addedCount} 个文件`);
     }
 
+    if (addedCount > 0) {
+      previewHtml.value = '';
+      ElMessage.success(`已添加 ${addedCount} 个文件`);
+    }
   } catch (error) {
     console.error("选择文件时出错:", error);
     ElMessage.error(`选择文件时出错: ${error}`);
@@ -157,17 +141,16 @@ function handleFileDrop(paths: string[]) {
   let addedCount = 0;
   if (paths && paths.length > 0) {
     paths.forEach(filePath => {
-       if (addFileAndProgress(filePath)) {
-           console.log('文件已拖放:', filePath);
-           addedCount++;
-           // Also clear editor content if files are dropped
-           if (hasEditorContent.value) {
-               editorContent.value = null;
-           }
-       }
+      if (addFileAndProgress(filePath)) {
+        console.log('文件已拖放:', filePath);
+        addedCount++;
+        if (hasEditorContent.value) {
+          editorContent.value = null;
+        }
+      }
     });
     if (addedCount > 0) {
-      previewHtml.value = ''; // Clear preview if new files are added
+      previewHtml.value = '';
       ElMessage.success(`已添加 ${addedCount} 个文件`);
     }
   } else {
@@ -180,7 +163,7 @@ async function generatePreview() {
     ElMessage.warning("请先选择输入文件或使用编辑器");
     return;
   }
-  if (hasMultipleFiles.value || isUsingEditorContent.value) { // Can't preview editor content either for now
+  if (hasMultipleFiles.value || isUsingEditorContent.value) {
     ElMessage.warning("预览功能当前仅支持单个文件输入");
     return;
   }
@@ -214,81 +197,72 @@ async function startConversion() {
 
   isLoading.value = true;
 
-  // Handle Editor Content Conversion (Re-introduced logic)
   if (isUsingEditorContent.value && editorContent.value) {
     ElMessage({ message: "开始从编辑器内容转换...", type: "info", duration: 0 });
-    // Since it's editor content, there's only one 'item'
     conversionProgress.value = [{ path: "[编辑器内容]", status: 'converting', message: '正在转换...', isSuccess: true }];
 
     try {
-        const defaultSaveName = `output.${selectedOutputFormat.value}`;
-        const outputPath = await save({
-            title: '选择保存位置',
-            defaultPath: defaultSaveName,
-            filters: [{ name: selectedOutputFormat.value.toUpperCase(), extensions: [selectedOutputFormat.value] }]
-        });
+      const defaultSaveName = `output.${selectedOutputFormat.value}`;
+      const outputPath = await save({
+        title: '选择保存位置',
+        defaultPath: defaultSaveName,
+        filters: [{ name: selectedOutputFormat.value.toUpperCase(), extensions: [selectedOutputFormat.value] }]
+      });
 
-        if (!outputPath) {
-            ElMessage.info("转换已取消");
-            conversionProgress.value[0].status = 'pending';
-            conversionProgress.value[0].message = '已取消';
-            conversionProgress.value[0].isSuccess = true; // Or maybe false? Depends on desired UI
-            isLoading.value = false;
-            return; // Exit if cancelled
-        }
-
-        // Define options specifically for convert_content
-        const options = {
-            input_content: editorContent.value, // Pass content directly
-            output_format: selectedOutputFormat.value,
-            output_path: outputPath,
-            // input_format is not needed for convert_content as it assumes markdown
-        };
-
-        // Actually invoke the backend command
-        const result: string = await invoke("convert_content", { options }); 
-
-        conversionProgress.value[0].status = 'success';
-        conversionProgress.value[0].message = result || '转换成功';
+      if (!outputPath) {
+        ElMessage.info("转换已取消");
+        conversionProgress.value[0].status = 'pending';
+        conversionProgress.value[0].message = '已取消';
         conversionProgress.value[0].isSuccess = true;
-        conversionProgress.value[0].outputPath = outputPath;
-        conversionHistory.value.unshift({ ...conversionProgress.value[0] }); // Add to history
-        ElMessage.success("编辑器内容转换成功！");
-
-    } catch (error: any) {
-        console.error("编辑器内容转换出错:", error);
-        conversionProgress.value[0].status = 'error';
-        conversionProgress.value[0].message = `转换失败: ${error}`;
-        conversionProgress.value[0].isSuccess = false;
-        ElMessage.error(`编辑器内容转换失败: ${error}`);
-    } finally {
-        ElMessage.closeAll("info");
         isLoading.value = false;
+        return;
+      }
+
+      const options = {
+        input_content: editorContent.value,
+        output_format: selectedOutputFormat.value,
+        output_path: outputPath,
+      };
+
+      const result: string = await invoke("convert_content", { options });
+
+      conversionProgress.value[0].status = 'success';
+      conversionProgress.value[0].message = result || '转换成功';
+      conversionProgress.value[0].isSuccess = true;
+      conversionProgress.value[0].outputPath = outputPath;
+      conversionHistory.value.unshift({ ...conversionProgress.value[0] });
+      ElMessage.success("编辑器内容转换成功！");
+    } catch (error: any) {
+      console.error("编辑器内容转换出错:", error);
+      conversionProgress.value[0].status = 'error';
+      conversionProgress.value[0].message = `转换失败: ${error}`;
+      conversionProgress.value[0].isSuccess = false;
+      ElMessage.error(`编辑器内容转换失败: ${error}`);
+    } finally {
+      ElMessage.closeAll("info");
+      isLoading.value = false;
     }
-    return; // Exit after handling editor content
+    return;
   }
 
-  // Reset status of existing files to pending before starting
   conversionProgress.value.forEach(p => {
     p.status = 'pending';
     p.message = '待处理';
-    p.isSuccess = true; // Reset status to pending
+    p.isSuccess = true;
   });
 
   let successCount = 0;
   let errorCount = 0;
 
-  // Use a copy of inputPaths for iteration in case it's modified during async operations
   const pathsToConvert = [...inputPaths.value];
-  const isSingleFile = pathsToConvert.length === 1; // Check if it's a single file conversion
+  const isSingleFile = pathsToConvert.length === 1;
 
   for (const currentPath of pathsToConvert) {
     const progressIndex = conversionProgress.value.findIndex(p => p.path === currentPath);
 
-    // Check if the file still exists in the main list and has a progress entry
     if (progressIndex === -1 || !inputPaths.value.includes(currentPath)) {
-        console.warn(`Skipping file ${currentPath}, removed before conversion started or missing progress entry.`);
-        continue;
+      console.warn(`Skipping file ${currentPath}, removed before conversion started or missing progress entry.`);
+      continue;
     }
 
     conversionProgress.value[progressIndex].status = 'converting';
@@ -298,94 +272,83 @@ async function startConversion() {
       const inputBasename = await basename(currentPath);
       const inputDir = await dirname(currentPath);
 
-      // Revised logic to get name without extension
       const lastDotIndex = inputBasename.lastIndexOf('.');
       let nameWithoutExt: string;
-      if (lastDotIndex > 0) { // Check if dot exists and is not the first character
-          nameWithoutExt = inputBasename.substring(0, lastDotIndex);
+      if (lastDotIndex > 0) {
+        nameWithoutExt = inputBasename.substring(0, lastDotIndex);
       } else {
-          // Use the full basename if no extension dot or it's a hidden file (dot is first char)
-          nameWithoutExt = inputBasename;
+        nameWithoutExt = inputBasename;
       }
       
-      let outputPath: string | null; // Declare outputPath, may be null if user cancels
+      let outputPath: string | null;
 
       if (isSingleFile) {
-        // Single file: Prompt user to save
         const suggestedFilename = `${nameWithoutExt}.${selectedOutputFormat.value}`;
         outputPath = await save({
           title: '选择保存位置',
-          defaultPath: `${inputDir}/${suggestedFilename}`, // Suggest default path/filename
-          filters: [{ // Optional: Filter by selected output format
+          defaultPath: `${inputDir}/${suggestedFilename}`,
+          filters: [{
             name: selectedOutputFormat.value.toUpperCase(),
             extensions: [selectedOutputFormat.value]
           }]
         });
 
         if (!outputPath) {
-          // User cancelled the save dialog
           ElMessage.info(`文件 "${inputBasename}" 的转换已取消`);
-          // Reset status or remove? Let's reset for now.
           if (progressIndex !== -1) {
-              conversionProgress.value[progressIndex].status = 'pending';
-              conversionProgress.value[progressIndex].message = '已取消';
-              conversionProgress.value[progressIndex].isSuccess = true; // Or maybe false? Depends on desired UI
+            conversionProgress.value[progressIndex].status = 'pending';
+            conversionProgress.value[progressIndex].message = '已取消';
+            conversionProgress.value[progressIndex].isSuccess = true;
           }
-          continue; // Skip to the next file (though there's only one)
+          continue;
         }
         console.log('User selected Output Path:', outputPath);
       } else {
-        // Multiple files: Use automatic path generation
         outputPath = `${inputDir}/${nameWithoutExt}.${selectedOutputFormat.value}`;
         console.log('Generated Output Path (batch):', outputPath);
       }
 
-      // Ensure outputPath is not null before proceeding (handled by continue above for single file)
       if (!outputPath) {
-          console.error("Unexpected null outputPath after check."); // Should not happen
-          // Also reset status if something went wrong before invoke
-          if (progressIndex !== -1) {
-            conversionProgress.value[progressIndex].status = 'pending';
-            conversionProgress.value[progressIndex].message = '输出路径错误';
-            conversionProgress.value[progressIndex].isSuccess = false; // Mark as error
-          }
-          continue;
+        console.error("Unexpected null outputPath after check.");
+        if (progressIndex !== -1) {
+          conversionProgress.value[progressIndex].status = 'pending';
+          conversionProgress.value[progressIndex].message = '输出路径错误';
+          conversionProgress.value[progressIndex].isSuccess = false;
+        }
+        continue;
       }
 
-      const options = { // This options is used by invoke below
-          input_path: currentPath,
-          output_format: selectedOutputFormat.value,
-          output_path: outputPath, // Use the determined path (user-selected or automatic)
-          input_format: selectedInputFormat.value,
+      const options = {
+        input_path: currentPath,
+        output_format: selectedOutputFormat.value,
+        output_path: outputPath,
+        input_format: selectedInputFormat.value,
       };
 
       const result: string = await invoke("convert_file", { options });
 
-      // Double-check index in case array was modified
       const currentIndex = conversionProgress.value.findIndex(p => p.path === currentPath);
       if (currentIndex !== -1) {
-          conversionProgress.value[currentIndex].status = 'success';
-          conversionProgress.value[currentIndex].message = result || '转换成功';
-          conversionProgress.value[currentIndex].isSuccess = true;
-          conversionProgress.value[currentIndex].outputPath = outputPath;
-          conversionHistory.value.unshift({ ...conversionProgress.value[currentIndex] }); // Add to history
-          successCount++;
+        conversionProgress.value[currentIndex].status = 'success';
+        conversionProgress.value[currentIndex].message = result || '转换成功';
+        conversionProgress.value[currentIndex].isSuccess = true;
+        conversionProgress.value[currentIndex].outputPath = outputPath;
+        conversionHistory.value.unshift({ ...conversionProgress.value[currentIndex] });
+        successCount++;
       } else {
-          console.warn(`File ${currentPath} conversion succeeded but entry was removed.`);
+        console.warn(`File ${currentPath} conversion succeeded but entry was removed.`);
       }
-
     } catch (error: any) {
       console.error(`文件 "${currentPath}" 转换出错:`, error);
       const errorMsg = `转换失败: ${error}`;
-       // Double-check index in case array was modified
       const currentIndex = conversionProgress.value.findIndex(p => p.path === currentPath);
       if (currentIndex !== -1) {
-          conversionProgress.value[currentIndex].status = 'error';
-          conversionProgress.value[currentIndex].message = errorMsg;
-          conversionProgress.value[currentIndex].isSuccess = false;
-          errorCount++;
+        conversionProgress.value[currentIndex].status = 'error';
+        conversionProgress.value[currentIndex].message = errorMsg;
+        conversionProgress.value[currentIndex].isSuccess = false;
+        errorCount++;
       } else {
-           console.warn(`File ${currentPath} conversion failed but entry was removed.`);
+        console.warn(`File ${currentPath} conversion failed but entry was removed.`);
       }
     }
   }
@@ -398,45 +361,42 @@ async function startConversion() {
   } else if (errorCount > 0) {
     ElMessage.warning(`批量转换完成，${successCount} 个成功，${errorCount} 个失败。`);
   } else if (successCount === 0 && errorCount === 0) {
-      ElMessage.info('没有文件被转换（可能列表为空或文件在转换前被移除）。');
+    ElMessage.info('没有文件被转换（可能列表为空或文件在转换前被移除）。');
   }
 }
 
-// --- New functions to handle opening file/folder ---
 async function openConvertedFile(outputPath: string | undefined) {
-    if (!outputPath) {
-        ElMessage.error("无法获取文件路径");
-        return;
-    }
-    try {
-        console.log(`尝试打开文件: ${outputPath}`);
-        await invoke('open_file_in_default_app', { path: outputPath });
-    } catch (error) {
-        console.error(`打开文件 ${outputPath} 出错:`, error);
-        ElMessage.error(`打开文件失败: ${error}`);
-    }
+  if (!outputPath) {
+    ElMessage.error("无法获取文件路径");
+    return;
+  }
+  try {
+    console.log(`尝试打开文件: ${outputPath}`);
+    await invoke('open_file_in_default_app', { path: outputPath });
+  } catch (error) {
+    console.error(`打开文件 ${outputPath} 出错:`, error);
+    ElMessage.error(`打开文件失败: ${error}`);
+  }
 }
 
 async function showInFolder(outputPath: string | undefined) {
-    if (!outputPath) {
-        ElMessage.error("无法获取文件路径");
-        return;
-    }
-    try {
-        const dir = await dirname(outputPath);
-        console.log(`尝试打开文件夹: ${dir}`);
-        await invoke('show_in_folder', { path: dir });
-    } catch (error) {
-        console.error(`打开文件夹 ${outputPath} 出错:`, error);
-        ElMessage.error(`打开文件夹失败: ${error}`);
-    }
+  if (!outputPath) {
+    ElMessage.error("无法获取文件路径");
+    return;
+  }
+  try {
+    const dir = await dirname(outputPath);
+    console.log(`尝试打开文件夹: ${dir}`);
+    await invoke('show_in_folder', { path: dir });
+  } catch (error) {
+    console.error(`打开文件夹 ${outputPath} 出错:`, error);
+    ElMessage.error(`打开文件夹失败: ${error}`);
+  }
 }
 
-// Setup drag and drop listener
 let unlistenDragDrop: (() => void) | null = null;
 
 onMounted(async () => {
-  // Get app version
   try {
     appVersion.value = await getVersion();
   } catch (error) {
@@ -444,7 +404,6 @@ onMounted(async () => {
     appVersion.value = 'Error';
   }
 
-  // Load history when component mounts
   await loadHistoryFromDisk();
 
   try {
@@ -469,46 +428,36 @@ onUnmounted(() => {
   }
 });
 
-// --- History Persistence ---
-
-// Function to load history from Rust backend
 async function loadHistoryFromDisk() {
   try {
-    // Use the existing ConversionStatus interface for the expected type from backend
-    const loadedHistory: ConversionStatus[] = await invoke('load_history'); 
-    conversionHistory.value = loadedHistory || []; // Update state, ensure it's an array
+    const loadedHistory: ConversionStatus[] = await invoke('load_history');
+    conversionHistory.value = loadedHistory || [];
     console.log(`成功加载 ${conversionHistory.value.length} 条历史记录。`);
   } catch (error) {
     console.error("加载历史记录失败:", error);
     ElMessage.error(`加载历史记录失败: ${error}`);
-    conversionHistory.value = []; // Reset to empty on error
+    conversionHistory.value = [];
   }
 }
 
-// Watch for changes in history and save to disk
 watch(conversionHistory, async (newHistory) => {
   try {
     await invoke('save_history', { history: newHistory });
     console.log(`历史记录已保存 (${newHistory.length} 条)。`);
   } catch (error) {
     console.error("保存历史记录失败:", error);
-    // Optionally notify user, but might be too noisy
-    // ElMessage.error(`保存历史记录失败: ${error}`); 
   }
-}, { deep: true }); // Use deep watch as we modify items within the array indirectly
+}, { deep: true });
 
-// --- Function to clear history ---
 function clearHistory() {
   if (conversionHistory.value.length > 0) {
     conversionHistory.value = [];
     ElMessage.success('历史记录已清空');
-    // The watch effect will automatically call save_history
   } else {
     ElMessage.info('历史记录已经是空的');
   }
 }
 
-// --- Function to delete a specific history item ---
 function deleteHistoryItem(itemToDelete: ConversionStatus) {
   const index = conversionHistory.value.findIndex(item => 
     item.path === itemToDelete.path && item.outputPath === itemToDelete.outputPath
@@ -519,19 +468,15 @@ function deleteHistoryItem(itemToDelete: ConversionStatus) {
   } else {
     ElMessage.warning('未找到要删除的历史记录');
   }
-  // The watch effect on conversionHistory will handle saving the updated list
 }
 
-// --- Helper function for template ---
 function getBaseName(path: string | undefined): string {
-    if (!path) return '';
-    // Basic basename logic for display
-    const separator = path.includes('/') ? '/' : '\\';
-    const parts = path.split(separator);
-    return parts[parts.length - 1] || path; // Return last part or original if split fails
+  if (!path) return '';
+  const separator = path.includes('/') ? '/' : '\\';
+  const parts = path.split(separator);
+  return parts[parts.length - 1] || path;
 }
 
-// --- Function to handle saving editor content ---
 async function handleEditorSave(content: string) {
   if (!content || content.trim() === '') {
     ElMessage.warning('编辑器内容为空，无法保存。');
@@ -540,7 +485,7 @@ async function handleEditorSave(content: string) {
   try {
     const outputPath = await save({
       title: '保存 Markdown 文件',
-      defaultPath: 'untitled.md', // Default filename
+      defaultPath: 'untitled.md',
       filters: [{ name: 'Markdown', extensions: ['md'] }]
     });
 
@@ -549,17 +494,13 @@ async function handleEditorSave(content: string) {
       return;
     }
 
-    // Invoke a *new* backend command to save the raw content
-    // We assume a function `save_raw_content` exists in Rust
     await invoke('save_raw_content', { path: outputPath, content: content });
     ElMessage.success(`Markdown 文件已保存到: ${outputPath}`);
-
   } catch (error) {
     console.error('保存 Markdown 文件出错:', error);
     ElMessage.error(`保存文件失败: ${error}`);
   }
 }
-
 </script>
 
 <template>
@@ -575,7 +516,6 @@ async function handleEditorSave(content: string) {
             <div style="padding: 25px; flex-grow: 1; display: flex; flex-direction: column;">
               <el-space direction="vertical" alignment="stretch" :size="18" style="width: 100%; flex-grow: 1; display: flex; flex-direction: column;">
 
-                <!-- Combined Dropzone and Select Area -->
                 <div
                   class="dropzone-hint"
                   @click="() => !isLoading && !isPreviewLoading && selectFile()"
@@ -792,7 +732,6 @@ async function handleEditorSave(content: string) {
       </div>
     </el-main>
 
-    <!-- Added Footer -->
     <el-footer class="app-footer">
       <el-space :size="10" spacer="|">
         <el-space :size="5">
@@ -816,81 +755,74 @@ async function handleEditorSave(content: string) {
 </template>
 
 <style>
-/* Global style adjustments */
 body {
-  /* Use a softer background color */
-  background-color: #f7f8fa; /* Slightly off-white */
+  background-color: #f7f8fa;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  height: 100vh;
+  display: flex;
 }
 
-/* Ensure #app fills the body */
 #app {
   height: 100vh;
-  display: flex; /* Helps center content if needed */
+  display: flex;
 }
 
-/* Main card styling */
 .main-card {
   margin-bottom: 20px;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  border: 1px solid #e4e7ed; /* Softer border */
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.06); /* Subtle shadow */
-  transition: box-shadow 0.3s ease-in-out; /* Smooth transition */
+  border: 1px solid #e4e7ed;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s ease-in-out;
 }
 .main-card:hover {
-   box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1); /* Slightly larger shadow on hover */
+   box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
 }
 
-/* Card header */
 .el-card__header {
-  background-color: #fafafa; /* Light background for header */
+  background-color: #fafafa;
   border-bottom: 1px solid #e4e7ed;
-  padding: 15px 25px; /* Adjust padding */
+  padding: 15px 25px;
 }
 
-/* Title styling */
 .app-title {
   margin: 0;
-  font-size: 1.6em; /* Slightly smaller, adjust as needed */
-  font-weight: 600; /* Bolder */
-  color: #303133; /* Darker text */
+  font-size: 1.6em;
+  font-weight: 600;
+  color: #303133;
   text-align: center;
 }
 
-/* Card body */
 .el-card__body {
-  padding: 30px; /* Increase padding */
+  padding: 30px;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
 }
 
-/* Button styling */
 .el-button--large {
-  padding: 15px 20px; /* Adjust padding for large buttons */
+  padding: 15px 20px;
   font-size: 14px;
 }
 
-/* Dropzone hint styling - Updated for combined functionality */
 .dropzone-hint {
   cursor: pointer;
   text-align: center;
-  padding: 25px 15px; /* More padding */
-  margin-top: 15px; /* Adjust margin */
+  padding: 25px 15px;
+  margin-top: 15px;
   border: 2px dashed #dcdfe6;
-  border-radius: 8px; /* More rounded corners */
-  color: #a8abb2; /* Slightly darker hint text */
+  border-radius: 8px;
+  color: #a8abb2;
   font-size: 14px;
-  background-color: #fcfcfc; /* Very light background */
+  background-color: #fcfcfc;
   transition: background-color 0.3s, border-color 0.3s;
-  display: flex; /* Use flexbox for centering content */
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 120px; /* Give it some minimum height */
+  min-height: 120px;
 }
 .dropzone-hint:hover {
     background-color: #f5f7fa;
@@ -901,62 +833,56 @@ body {
     opacity: 0.6;
 }
 
-/* File status table container */
 .file-status-table-container {
   margin-top: 15px;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Hide outer scrollbar, let table handle its own */
-  border: 1px solid #e4e7ed; /* Add border */
-  border-radius: 4px; /* Match table */
-  background-color: #fff; /* White background for table area */
+  overflow: hidden;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background-color: #fff;
 }
 
 .file-status-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px; /* Add padding */
-    background-color: #fafafa; /* Light header background */
+    padding: 8px 12px;
+    background-color: #fafafa;
     border-bottom: 1px solid #e4e7ed;
     flex-shrink: 0;
 }
 
 .el-table {
-    flex-grow: 1; /* Allow table to take available space */
-    /* Remove table border as container has one */
+    flex-grow: 1;
     --el-table-border-color: transparent;
 }
 
 .el-table th {
-    background-color: #f5f7fa !important; /* Ensure header background */
+    background-color: #f5f7fa !important;
     font-weight: 500;
     color: #606266;
 }
 
 .el-table td, .el-table th {
-    padding: 8px 0; /* Adjust cell padding */
+    padding: 8px 0;
 }
 
-/* Form item labels */
 .el-form-item__label {
     font-weight: 500;
     color: #606266;
-    padding-right: 8px; /* Slightly reduce padding */
+    padding-right: 8px;
 }
 
-/* Style for spinner in table */
 .el-icon.is-loading {
     animation: rotating 2s linear infinite;
 }
 
-/* Ensure dialog content has padding */
 .el-dialog__body .el-scrollbar__view {
     padding: 10px 20px;
 }
 
-/* Preview container */
 .preview-container {
     height: 75vh;
     overflow-y: auto;
@@ -966,7 +892,6 @@ body {
     border-radius: 4px;
 }
 
-/* History Card */
 .history-card {
     margin-top: 20px;
     flex-shrink: 0;
@@ -974,7 +899,6 @@ body {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-/* Center align buttons in action column */
 .el-table .el-table__cell.action-column {
     text-align: center;
 }
@@ -984,31 +908,27 @@ body {
     align-items: center;
 }
 
-/* Adjustments for editor view */
 .editor-view {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    height: 100%; /* Ensure it tries to take full height */
+    height: 100%;
 }
 .editor-wrapper {
     width: 100%;
     flex-grow: 1;
-    display: flex; /* Let editor component grow */
+    display: flex;
 }
 
-/* Footer Styles */
 .app-footer {
-  /* height: 25px; */ /* Remove fixed height */
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 1px solid #eeeeee; /* Lighter border */
-  background-color: #ffffff; /* Cleaner white background */
-  flex-shrink: 0; /* Prevent footer from shrinking */
-  padding: 4px 20px; /* Slightly increased vertical padding */
-  /* line-height: 25px; */ /* Remove fixed line-height */
-  overflow: hidden; /* Prevent content overflow from increasing height */
+  border-top: 1px solid #eeeeee;
+  background-color: #ffffff;
+  flex-shrink: 0;
+  padding: 4px 20px;
+  overflow: hidden;
 }
 
 </style>
