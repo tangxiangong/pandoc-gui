@@ -68,9 +68,10 @@ function addFileAndProgress(filePath: string): boolean {
 
     // If editor content exists, clear it when adding files
     if (hasEditorContent.value) {
-        editorContent.value = null;
-        conversionProgress.value = []; // Clear progress table too
+        ElMessage.warning('编辑器当前有内容。请先清除或使用编辑器内容后再添加文件。');
+        return false; // Prevent adding file
     }
+
     if (!inputPaths.value.includes(filePath)) {
         inputPaths.value.push(filePath);
         conversionProgress.value.push({
@@ -105,9 +106,18 @@ function clearAllFiles() {
 // Function to handle editor content submission
 function handleEditorSubmit(content: string) {
   console.log('Received content from local editor component:', content);
+
+  // --- Mutual Exclusion Check ---
+  if (hasFiles.value) {
+    ElMessage.warning('文件列表不为空。请先清空列表后再使用编辑器内容。');
+    return; // Prevent submitting editor content
+  }
+  // --- End Mutual Exclusion Check ---
+
   // Clear existing file list and progress
-  inputPaths.value = [];
-  conversionProgress.value = [];
+  // inputPaths.value = []; // No longer needed due to the check above
+  // conversionProgress.value = []; // No longer needed, the editor placeholder replaces it
+
   // Set the editor content
   editorContent.value = content;
   selectedInputFormat.value = "markdown"; // Force input format to markdown
@@ -156,14 +166,18 @@ async function selectFile() {
 function handleFileDrop(paths: string[]) {
   let addedCount = 0;
   if (paths && paths.length > 0) {
+    // --- Mutual Exclusion Check (Global for Drop) ---
+    if (hasEditorContent.value) {
+      ElMessage.warning('编辑器当前有内容。请先清除或使用编辑器内容后再拖放文件。');
+      return; // Prevent adding any dropped files
+    }
+    // --- End Mutual Exclusion Check ---
+
     paths.forEach(filePath => {
-       if (addFileAndProgress(filePath)) {
+       if (addFileAndProgress(filePath)) { // addFileAndProgress now contains its own check
            console.log('文件已拖放:', filePath);
            addedCount++;
-           // Also clear editor content if files are dropped
-           if (hasEditorContent.value) {
-               editorContent.value = null;
-           }
+           // No longer need to clear editor content here, handled by checks
        }
     });
     if (addedCount > 0) {
@@ -576,22 +590,39 @@ async function handleEditorSave(content: string) {
               <el-space direction="vertical" alignment="stretch" :size="18" style="width: 100%; flex-grow: 1; display: flex; flex-direction: column;">
 
                 <!-- Combined Dropzone and Select Area -->
-                <div
-                  class="dropzone-hint"
-                  @click="() => !isLoading && !isPreviewLoading && selectFile()"
-                  :class="{ 'is-disabled': isLoading || isPreviewLoading }"
-                  role="button"
-                  tabindex="0"
-                  @keydown.enter="() => !isLoading && !isPreviewLoading && selectFile()"
+                <el-tooltip 
+                  :content="hasEditorContent ? '编辑器有内容时无法添加文件' : '点击选择或拖拽文件到此处'" 
+                  placement="top" 
+                  :disabled="!hasEditorContent"
                 >
-                  <el-icon :size="40" style="margin-bottom: 10px;"><FolderOpened /></el-icon>
-                  <p style="margin: 0; font-size: 1.1em; font-weight: 500;">点击选择或拖拽文件到此处</p>
-                  <p style="margin: 5px 0 0; font-size: 0.9em; color: #909399;">支持单个或多个文件</p>
-                </div>
+                  <div
+                    class="dropzone-hint"
+                    @click="() => !isLoading && !isPreviewLoading && !hasEditorContent && selectFile()"
+                    :class="{ 'is-disabled': isLoading || isPreviewLoading || hasEditorContent }"
+                    role="button"
+                    tabindex="0"
+                    @keydown.enter="() => !isLoading && !isPreviewLoading && !hasEditorContent && selectFile()"
+                  >
+                    <el-icon :size="40" style="margin-bottom: 10px;"><FolderOpened /></el-icon>
+                    <p style="margin: 0; font-size: 1.1em; font-weight: 500;">点击选择或拖拽文件到此处</p>
+                    <p style="margin: 5px 0 0; font-size: 0.9em; color: #909399;">支持单个或多个文件</p>
+                  </div>
+                </el-tooltip>
 
-                <el-button @click="showEditor = true" :disabled="isLoading || isPreviewLoading" size="large" style="width: 100%;">
-                    <el-icon style="margin-right: 8px;"><EditPen /></el-icon> 使用 Markdown 编辑器输入
-                </el-button>
+                <el-tooltip 
+                  :content="hasFiles ? '文件列表不为空时无法使用编辑器' : '使用 Markdown 编辑器输入内容'" 
+                  placement="bottom" 
+                  :disabled="!hasFiles"
+                >
+                  <el-button 
+                    @click="showEditor = true" 
+                    :disabled="isLoading || isPreviewLoading || hasFiles" 
+                    size="large" 
+                    style="width: 100%;"
+                  >
+                      <el-icon style="margin-right: 8px;"><EditPen /></el-icon> 使用 Markdown 编辑器输入
+                  </el-button>
+                </el-tooltip>
 
                 <div v-if="hasInput" class="file-status-table-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
                      <div class="file-status-header">
@@ -780,6 +811,7 @@ async function handleEditorSave(content: string) {
         <div v-show="showEditor" class="editor-view">
           <div class="editor-wrapper">
               <markdown-editor
+                  :is-file-list-present="hasFiles"
                   @submit-content="handleEditorSubmit"
                   @save-content="handleEditorSave"
                   @cancel="showEditor = false"

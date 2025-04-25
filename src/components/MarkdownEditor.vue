@@ -21,9 +21,11 @@ const emit = defineEmits<{
 // Define props
 interface Props {
   showCancelButton?: boolean;
+  isFileListPresent?: boolean; // Add prop to indicate if file list is non-empty
 }
 const props = withDefaults(defineProps<Props>(), {
   showCancelButton: false,
+  isFileListPresent: false, // Default value
 });
 
 const registerMermaidPlugin = async () => {
@@ -129,6 +131,10 @@ onUnmounted(() => {
 
 // Function to emit content to the parent component
 function submitContent() {
+  if (props.isFileListPresent) {
+    console.warn("Submit button clicked while file list is present, should be disabled.");
+    return; 
+  }
   if (cherryInstance.value) {
     const currentContent = cherryInstance.value.getMarkdown();
     // Use the Vue emit defined earlier
@@ -159,7 +165,13 @@ function saveContent() {
       <!-- Add Cancel button -->
       <button v-if="props.showCancelButton" @click="cancelEdit" class="button-cancel">返回</button>
       <button @click="saveContent" class="button-save">保存 Markdown</button>
-      <button @click="submitContent" class="button-submit">使用编辑器内容</button>
+      <button 
+          @click="submitContent" 
+          class="button-submit" 
+          :disabled="props.isFileListPresent" 
+          :title="props.isFileListPresent ? '文件列表不为空，无法提交编辑器内容' : '使用此内容进行转换'">
+          使用编辑器内容
+      </button>
     </div>
   </div>
 </template>
@@ -199,6 +211,11 @@ function saveContent() {
 
 .button-submit:hover {
   background-color: #66b1ff;
+}
+
+.button-submit:disabled {
+  background-color: #a0cfff; /* Lighter blue for disabled state */
+  cursor: not-allowed;
 }
 
 .button-cancel {
