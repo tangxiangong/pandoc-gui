@@ -2,12 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4] - 2025-04-25
+
+### 🚀 Features
+
+- Add save_raw_content command to save original content to a file
+- Add history item deletion and editor save functionality
+- Improve App.vue with code cleanup and enhanced functionality
+- Enhance App.vue with improved file handling and user feedback
+- Enhance file handling and editor interaction in App.vue and MarkdownEditor.vue
+
+### ⚙️ Miscellaneous Tasks
+
+- Bump version to 0.1.4 in package files
+
 ## [0.1.3] - 2025-04-23
 
 ### 🚀 Features
 
 - Enhance App.vue and MarkdownEditor.vue with new features
 - Add PDF input check and improve error handling in conversion functions
+
+### 🐛 Bug Fixes
+
+- Update text type for better visibility in App.vue
 
 ### 🚜 Refactor
 
@@ -21,6 +39,7 @@ All notable changes to this project will be documented in this file.
 - Add @element-plus/icons-vue dependency in package.json
 - Bump pandoc-gui version to 0.1.3 in Cargo.toml and Cargo.lock
 - Update version in tauri.conf.json to 0.1.3
+- Update CHANGELOG for version 0.1.3 release
 
 ## [0.1.2] - 2025-04-22
 
