@@ -40,14 +40,14 @@
     </div>
 
     {#if isExpanded}
-        <div class="history-content">
+        <div class="mt-2">
             {#if conversionHistory.length === 0}
                 <div class="empty-state">
                     <p>暂无历史记录</p>
                 </div>
             {:else}
-                <div class="table-container">
-                    <table class="history-table">
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra">
                         <thead>
                             <tr>
                                 <th>输入</th>
@@ -76,15 +76,15 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <span class="success-text"
+                                        <span class="text-success text-xs"
                                             >{item.message}</span
                                         >
                                     </td>
                                     <td>
                                         {#if item.outputPath}
-                                            <div class="action-buttons">
+                                            <div class="flex gap-1 flex-wrap">
                                                 <button
-                                                    class="action-button primary"
+                                                    class="btn btn-xs btn-primary"
                                                     on:click={() =>
                                                         openConvertedFile(
                                                             item.outputPath,
@@ -94,7 +94,7 @@
                                                     📄 打开
                                                 </button>
                                                 <button
-                                                    class="action-button success"
+                                                    class="btn btn-xs btn-success"
                                                     on:click={() =>
                                                         showInFolder(
                                                             item.outputPath,
@@ -104,7 +104,7 @@
                                                     📁 文件夹
                                                 </button>
                                                 <button
-                                                    class="action-button danger"
+                                                    class="btn btn-xs btn-error"
                                                     on:click={() =>
                                                         deleteHistoryItem(item)}
                                                     title="删除历史记录"
@@ -113,7 +113,10 @@
                                                 </button>
                                             </div>
                                         {:else}
-                                            <span class="no-output">-</span>
+                                            <span
+                                                class="text-base-content opacity-50"
+                                                >-</span
+                                            >
                                         {/if}
                                     </td>
                                 </tr>
@@ -125,188 +128,3 @@
         </div>
     {/if}
 </div>
-
-<style>
-    .history-container {
-        width: 100%;
-    }
-
-    .collapse-header {
-        display: flex;
-        align-items: center;
-        cursor: pointer;
-        padding: 8px 0;
-        font-weight: 500;
-        color: #606266;
-        user-select: none;
-    }
-
-    .collapse-header:hover {
-        color: #409eff;
-    }
-
-    .collapse-icon {
-        margin-right: 8px;
-        transition: transform 0.3s ease;
-        font-size: 12px;
-    }
-
-    .collapse-icon.expanded {
-        transform: rotate(90deg);
-    }
-
-    .history-content {
-        margin-top: 8px;
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 20px;
-        color: #909399;
-    }
-
-    .empty-state p {
-        margin: 0;
-        font-style: italic;
-    }
-
-    .table-container {
-        overflow-x: auto;
-    }
-
-    .history-table {
-        width: 100%;
-        border-collapse: collapse;
-        background: white;
-        border-radius: 4px;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .history-table th {
-        background-color: #f5f7fa;
-        color: #606266;
-        font-weight: 500;
-        padding: 12px 8px;
-        text-align: left;
-        border-bottom: 1px solid #e4e7ed;
-        font-size: 13px;
-    }
-
-    .history-table td {
-        padding: 12px 8px;
-        border-bottom: 1px solid #f0f0f0;
-        vertical-align: middle;
-        font-size: 13px;
-    }
-
-    .history-table tbody tr:hover {
-        background-color: #f5f7fa;
-    }
-
-    .history-table tbody tr:last-child td {
-        border-bottom: none;
-    }
-
-    .file-path {
-        display: inline-block;
-        max-width: 200px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        color: #606266;
-    }
-
-    .success-text {
-        color: #67c23a;
-        font-size: 12px;
-    }
-
-    .no-output {
-        color: #c0c4cc;
-    }
-
-    .action-buttons {
-        display: flex;
-        gap: 4px;
-        flex-wrap: wrap;
-    }
-
-    .action-button {
-        padding: 4px 8px;
-        font-size: 11px;
-        border: none;
-        border-radius: 3px;
-        cursor: pointer;
-        transition: all 0.3s;
-        white-space: nowrap;
-    }
-
-    .action-button.primary {
-        background: #409eff;
-        color: white;
-    }
-
-    .action-button.primary:hover {
-        background: #66b1ff;
-    }
-
-    .action-button.success {
-        background: #67c23a;
-        color: white;
-    }
-
-    .action-button.success:hover {
-        background: #85ce61;
-    }
-
-    .action-button.danger {
-        background: #f56c6c;
-        color: white;
-    }
-
-    .action-button.danger:hover {
-        background: #f78989;
-    }
-
-    /* Dark mode support */
-    @media (prefers-color-scheme: dark) {
-        .collapse-header {
-            color: #c0c4cc;
-        }
-
-        .collapse-header:hover {
-            color: #409eff;
-        }
-
-        .empty-state {
-            color: #909399;
-        }
-
-        .history-table {
-            background: #2d2d2d;
-        }
-
-        .history-table th {
-            background-color: #3a3a3a;
-            color: #c0c4cc;
-            border-bottom-color: #444;
-        }
-
-        .history-table td {
-            border-bottom-color: #444;
-        }
-
-        .history-table tbody tr:hover {
-            background-color: #3a3a3a;
-        }
-
-        .file-path {
-            color: #c0c4cc;
-        }
-
-        .no-output {
-            color: #666;
-        }
-    }
-</style>

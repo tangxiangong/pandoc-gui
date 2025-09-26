@@ -39,47 +39,56 @@
     }
 </script>
 
-<div class="editor-page">
-    <div class="editor-container">
-        <div class="editor-toolbar">
-            <h3>Markdown 编辑器</h3>
-            <div class="toolbar-buttons">
-                <button
-                    on:click={() => (textareaContent += "**粗体**")}
-                    class="toolbar-btn">B</button
-                >
-                <button
-                    on:click={() => (textareaContent += "*斜体*")}
-                    class="toolbar-btn">I</button
-                >
-                <button
-                    on:click={() => (textareaContent += "\n# 标题\n")}
-                    class="toolbar-btn">H</button
-                >
-                <button
-                    on:click={() => (textareaContent += "\n- 列表项\n")}
-                    class="toolbar-btn">•</button
-                >
+<div class="flex flex-col h-full overflow-hidden">
+    <div
+        class="card bg-base-100 shadow-xl flex-grow flex flex-col overflow-hidden"
+    >
+        <div class="card-header bg-base-200 border-b px-4 py-3">
+            <div class="flex justify-between items-center">
+                <h3 class="card-title text-base">Markdown 编辑器</h3>
+                <div class="btn-group">
+                    <button
+                        on:click={() => (textareaContent += "**粗体**")}
+                        class="btn btn-sm btn-outline"
+                        ><strong>B</strong></button
+                    >
+                    <button
+                        on:click={() => (textareaContent += "*斜体*")}
+                        class="btn btn-sm btn-outline"><em>I</em></button
+                    >
+                    <button
+                        on:click={() => (textareaContent += "\n# 标题\n")}
+                        class="btn btn-sm btn-outline">H</button
+                    >
+                    <button
+                        on:click={() => (textareaContent += "\n- 列表项\n")}
+                        class="btn btn-sm btn-outline">•</button
+                    >
+                </div>
             </div>
         </div>
 
-        <textarea
-            bind:value={textareaContent}
-            placeholder="在此输入 Markdown 内容..."
-            rows="20"
-        ></textarea>
+        <div class="card-body flex-grow p-0">
+            <textarea
+                bind:value={textareaContent}
+                placeholder="在此输入 Markdown 内容..."
+                rows="20"
+                class="textarea textarea-bordered flex-grow w-full rounded-none border-0 font-mono resize-none"
+            ></textarea>
+        </div>
     </div>
 
-    <div class="editor-actions">
+    <div class="flex justify-end gap-2 p-3 bg-base-200 border-t">
         <!-- Add Cancel button -->
         {#if showCancelButton}
-            <button on:click={cancelEdit} class="button-cancel">返回</button>
+            <button on:click={cancelEdit} class="btn btn-ghost">返回</button>
         {/if}
-        <button on:click={saveContent} class="button-save">保存 Markdown</button
-        >
+        <button on:click={saveContent} class="btn btn-success">
+            保存 Markdown
+        </button>
         <button
             on:click={submitContent}
-            class="button-submit"
+            class="btn btn-primary"
             disabled={hasFiles}
             title={hasFiles
                 ? "文件列表不为空，无法提交编辑器内容"
@@ -89,155 +98,3 @@
         </button>
     </div>
 </div>
-
-<style>
-    .editor-page {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        overflow: hidden;
-    }
-
-    .editor-container {
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        border: 1px solid #dcdfe6;
-        border-radius: 4px;
-        overflow: hidden;
-    }
-
-    .editor-toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 15px;
-        background-color: #f8f9fa;
-        border-bottom: 1px solid #dcdfe6;
-    }
-
-    .editor-toolbar h3 {
-        margin: 0;
-        color: #303133;
-        font-size: 16px;
-    }
-
-    .toolbar-buttons {
-        display: flex;
-        gap: 5px;
-    }
-
-    .toolbar-btn {
-        padding: 5px 10px;
-        border: 1px solid #dcdfe6;
-        background: white;
-        border-radius: 3px;
-        cursor: pointer;
-        font-weight: bold;
-        color: #606266;
-        transition: all 0.2s;
-    }
-
-    .toolbar-btn:hover {
-        background: #ecf5ff;
-        border-color: #409eff;
-        color: #409eff;
-    }
-
-    textarea {
-        flex-grow: 1;
-        width: 100%;
-        padding: 15px;
-        border: none;
-        resize: none;
-        font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
-        font-size: 14px;
-        line-height: 1.6;
-        outline: none;
-        background: white;
-    }
-
-    .editor-actions {
-        padding: 10px;
-        text-align: right;
-        background-color: #f8f9fa;
-        border-top: 1px solid #dcdfe6;
-        flex-shrink: 0;
-    }
-
-    .editor-actions button {
-        padding: 8px 15px;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        margin-left: 10px;
-        transition: background-color 0.2s;
-    }
-
-    .button-submit {
-        background-color: #409eff;
-    }
-
-    .button-submit:hover:not(:disabled) {
-        background-color: #66b1ff;
-    }
-
-    .button-submit:disabled {
-        background-color: #a0cfff;
-        cursor: not-allowed;
-    }
-
-    .button-cancel {
-        background-color: #909399;
-    }
-
-    .button-cancel:hover {
-        background-color: #a6a9ad;
-    }
-
-    .button-save {
-        background-color: #67c23a;
-    }
-
-    .button-save:hover {
-        background-color: #85ce61;
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .editor-container {
-            border-color: #444;
-        }
-
-        .editor-toolbar {
-            background-color: #2d2d2d;
-            border-bottom-color: #444;
-        }
-
-        .editor-toolbar h3 {
-            color: #e4e7ed;
-        }
-
-        .toolbar-btn {
-            background: #3a3a3a;
-            color: #c0c4cc;
-            border-color: #555;
-        }
-
-        .toolbar-btn:hover {
-            background: #404040;
-            border-color: #409eff;
-        }
-
-        textarea {
-            background: #2d2d2d;
-            color: #e4e7ed;
-        }
-
-        .editor-actions {
-            background-color: #2d2d2d;
-            border-top-color: #444;
-        }
-    }
-</style>
