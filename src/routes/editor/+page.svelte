@@ -1,405 +1,338 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
-    import { goto } from "$app/navigation";
-    import { save } from "@tauri-apps/plugin-dialog";
-    import { invoke } from "@tauri-apps/api/core";
+    import { browser } from "$app/environment";
+    import type { OutputFormat } from "../../lib/types.js";
+    import {
+        editorOutputFormats,
+        navigateToMain,
+        insertBold,
+        insertItalic,
+        insertHeader,
+        insertList,
+        insertLink,
+        insertCode,
+        insertCodeBlock,
+        insertTable,
+        saveMarkdownFile,
+        convertAndSaveContent,
+        handleEditorKeyDown,
+        validateContent,
+        getTextareaElement,
+    } from "../../lib/editor-utils.js";
 
-    const dispatch = createEventDispatcher<{
-        "content-ready": string;
-    }>();
-
+    // State variables
     let textareaContent: string = "";
     let isSaving: boolean = false;
     let isSubmitting: boolean = false;
+    let selectedOutputFormat: OutputFormat = "docx";
 
-    const availableOutputFormats = [
-        { value: "docx", label: "Word Document" },
-        { value: "html", label: "HTML" },
-        { value: "pdf", label: "PDF" },
-        { value: "tex", label: "LaTeX" },
-        { value: "md", label: "Markdown" },
-        { value: "odt", label: "OpenDocument" },
-        { value: "rst", label: "reStructuredText" },
-        { value: "epub", label: "EPUB" },
-    ];
-
-    let selectedOutputFormat = "docx";
-
-    function goBack() {
-        goto("/");
-    }
-
-    function insertText(text: string) {
-        const textarea = document.querySelector("textarea");
-        if (textarea) {
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const before = textareaContent.substring(0, start);
-            const after = textareaContent.substring(end);
-            textareaContent = before + text + after;
-
-            // Set cursor position after inserted text
-            setTimeout(() => {
-                textarea.focus();
-                textarea.setSelectionRange(
-                    start + text.length,
-                    start + text.length,
-                );
-            }, 0);
-        } else {
-            textareaContent += text;
-        }
-    }
-
-    function insertBold() {
-        insertText("**粗体文本**");
-    }
-
-    function insertItalic() {
-        insertText("*斜体文本*");
-    }
-
-    function insertHeader() {
-        insertText("\n# 标题\n");
-    }
-
-    function insertList() {
-        insertText("\n- 列表项\n- 另一项\n");
-    }
-
-    function insertLink() {
-        insertText("[链接文本](https://example.com)");
-    }
-
-    function insertCode() {
-        insertText("`代码`");
-    }
-
-    function insertCodeBlock() {
-        insertText("\n```\n代码块\n```\n");
-    }
-
-    function insertTable() {
-        insertText(
-            "\n| 列1 | 列2 | 列3 |\n|-----|-----|-----|\n| 数据 | 数据 | 数据 |\n",
-        );
-    }
-
-    async function saveContent() {
-        if (!textareaContent.trim()) {
-            alert("编辑器内容为空，无法保存。");
-            return;
-        }
-
+    // Event handlers
+    async function onSave() {
+        if (!browser) return;
         isSaving = true;
-
         try {
-            const outputPath = await save({
-                title: "保存 Markdown 文件",
-                defaultPath: "untitled.md",
-                filters: [{ name: "Markdown", extensions: ["md"] }],
-            });
-
-            if (!outputPath) {
-                return;
-            }
-
-            await invoke("save_raw_content", {
-                path: outputPath,
-                content: textareaContent,
-            });
-
-            alert(`Markdown 文件已保存到: ${outputPath}`);
-        } catch (error: unknown) {
-            console.error("保存 Markdown 文件出错:", error);
-            alert(`保存文件失败: ${error}`);
+            await saveMarkdownFile(textareaContent);
         } finally {
             isSaving = false;
         }
     }
 
-    async function submitContent() {
-        if (!textareaContent.trim()) {
-            alert("请先输入一些内容");
-            return;
-        }
-
+    async function onSubmit() {
+        if (!browser) return;
         isSubmitting = true;
-
         try {
-            const defaultSaveName = `output.${selectedOutputFormat}`;
-            const outputPath = await save({
-                title: "选择保存位置",
-                defaultPath: defaultSaveName,
-                filters: [
-                    {
-                        name: selectedOutputFormat.toUpperCase(),
-                        extensions: [selectedOutputFormat],
-                    },
-                ],
-            });
-
-            if (!outputPath) {
-                isSubmitting = false;
-                return;
-            }
-
-            const options = {
-                input_content: textareaContent,
-                output_format: selectedOutputFormat,
-                output_path: outputPath,
-            };
-
-            const result: string = await invoke("convert_content", {
-                options,
-            });
-
-            alert(`转换成功！\n${result}\n文件已保存到: ${outputPath}`);
-
-            // Optionally clear content after successful conversion
-            // textareaContent = "";
-        } catch (error: unknown) {
-            console.error("转换失败:", error);
-            alert(`转换失败: ${error}`);
+            await convertAndSaveContent(textareaContent, selectedOutputFormat);
         } finally {
             isSubmitting = false;
         }
     }
 
-    // Keyboard shortcuts
-    function handleKeyDown(event: KeyboardEvent) {
-        if (event.ctrlKey || event.metaKey) {
-            switch (event.key) {
-                case "s":
-                    event.preventDefault();
-                    saveContent();
-                    break;
-                case "b":
-                    event.preventDefault();
-                    insertBold();
-                    break;
-                case "i":
-                    event.preventDefault();
-                    insertItalic();
-                    break;
-                case "Enter":
-                    if (event.shiftKey) {
-                        event.preventDefault();
-                        submitContent();
-                    }
-                    break;
-            }
-        }
+    function onInsertBold() {
+        textareaContent = insertBold(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
     }
+
+    function onInsertItalic() {
+        textareaContent = insertItalic(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
+    }
+
+    function onInsertHeader() {
+        textareaContent = insertHeader(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
+    }
+
+    function onInsertList() {
+        textareaContent = insertList(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
+    }
+
+    function onInsertLink() {
+        textareaContent = insertLink(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
+    }
+
+    function onInsertCode() {
+        textareaContent = insertCode(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
+    }
+
+    function onInsertCodeBlock() {
+        textareaContent = insertCodeBlock(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
+    }
+
+    function onInsertTable() {
+        textareaContent = insertTable(
+            textareaContent,
+            getTextareaElement() || undefined,
+        );
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+        handleEditorKeyDown(event, {
+            onSave,
+            onBold: onInsertBold,
+            onItalic: onInsertItalic,
+            onSubmit,
+        });
+    }
+
+    // Computed properties
+    $: validation = validateContent(textareaContent);
+    $: canSave = validation.isValid && !isSaving && !isSubmitting;
+    $: canSubmit = validation.isValid && !isSaving && !isSubmitting;
 </script>
 
-<svelte:window on:keydown={handleKeyDown} />
+<svelte:window on:keydown={onKeyDown} />
 
 <div class="flex flex-col h-screen bg-base-200 font-sans">
     <div class="navbar bg-base-100 shadow-lg">
         <div class="navbar-start">
-            <button class="btn btn-ghost" on:click={goBack}>
+            <button class="btn btn-ghost" on:click={navigateToMain}>
                 ← 返回主页
             </button>
+        </div>
+        <div class="navbar-center">
             <h1 class="text-xl font-bold">Markdown 编辑器</h1>
         </div>
         <div class="navbar-end">
-            <div class="form-control">
-                <label for="output-format" class="label label-text"
-                    >输出格式:</label
+            <div class="flex gap-2">
+                <button
+                    class="btn btn-outline"
+                    on:click={onSave}
+                    disabled={!canSave}
                 >
-                <select
-                    id="output-format"
-                    bind:value={selectedOutputFormat}
-                    class="select select-bordered select-sm"
-                >
-                    {#each availableOutputFormats as format}
-                        <option value={format.value}>{format.label}</option>
-                    {/each}
-                </select>
+                    {#if isSaving}
+                        <span class="loading loading-spinner loading-sm"></span>
+                        保存中...
+                    {:else}
+                        💾 保存 (Ctrl+S)
+                    {/if}
+                </button>
             </div>
         </div>
     </div>
 
-    <div class="flex items-center gap-2 px-6 py-3 bg-base-100 border-b">
-        <div class="btn-group">
-            <button
-                class="btn btn-sm btn-outline"
-                title="粗体 (Ctrl+B)"
-                on:click={insertBold}
-            >
-                <strong>B</strong>
-            </button>
-            <button
-                class="btn btn-sm btn-outline"
-                title="斜体 (Ctrl+I)"
-                on:click={insertItalic}
-            >
-                <em>I</em>
-            </button>
-            <button
-                class="btn btn-sm btn-outline"
-                title="标题"
-                on:click={insertHeader}
-            >
-                H
-            </button>
-        </div>
-
-        <div class="divider divider-horizontal"></div>
-
-        <div class="btn-group">
-            <button
-                class="btn btn-sm btn-outline"
-                title="无序列表"
-                on:click={insertList}
-            >
-                •
-            </button>
-            <button
-                class="btn btn-sm btn-outline"
-                title="链接"
-                on:click={insertLink}
-            >
-                🔗
-            </button>
-            <button
-                class="btn btn-sm btn-outline"
-                title="内联代码"
-                on:click={insertCode}
-            >
-                `
-            </button>
-        </div>
-
-        <div class="divider divider-horizontal"></div>
-
-        <div class="btn-group">
-            <button
-                class="btn btn-sm btn-outline"
-                title="代码块"
-                on:click={insertCodeBlock}
-            >
-                {"{}"}
-            </button>
-            <button
-                class="btn btn-sm btn-outline"
-                title="表格"
-                on:click={insertTable}
-            >
-                ⊞
-            </button>
-        </div>
-    </div>
-
-    <div class="flex-1 flex flex-col overflow-hidden">
-        <div class="flex-1 flex overflow-hidden">
-            <div class="flex-1 flex flex-col bg-base-100 border-r">
-                <div
-                    class="flex justify-between items-center px-4 py-3 bg-base-200 border-b"
-                >
-                    <h3 class="text-sm font-semibold">编辑</h3>
-                    <div class="text-xs opacity-70">
-                        {textareaContent.length} 字符 | {textareaContent
-                            .split(/\s+/)
-                            .filter((w) => w.length > 0).length} 单词
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Toolbar -->
+        <div
+            class="bg-base-100 border-r border-base-300 p-4 w-64 overflow-y-auto"
+        >
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-semibold mb-2">格式工具</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button
+                            class="btn btn-outline btn-sm"
+                            on:click={onInsertBold}
+                            title="粗体 (Ctrl+B)"
+                        >
+                            <strong>B</strong>
+                        </button>
+                        <button
+                            class="btn btn-outline btn-sm"
+                            on:click={onInsertItalic}
+                            title="斜体 (Ctrl+I)"
+                        >
+                            <em>I</em>
+                        </button>
+                        <button
+                            class="btn btn-outline btn-sm"
+                            on:click={onInsertHeader}
+                            title="标题"
+                        >
+                            H1
+                        </button>
+                        <button
+                            class="btn btn-outline btn-sm"
+                            on:click={onInsertList}
+                            title="列表"
+                        >
+                            📋
+                        </button>
+                        <button
+                            class="btn btn-outline btn-sm"
+                            on:click={onInsertLink}
+                            title="链接"
+                        >
+                            🔗
+                        </button>
+                        <button
+                            class="btn btn-outline btn-sm"
+                            on:click={onInsertCode}
+                            title="行内代码"
+                        >
+                            &lt;/&gt;
+                        </button>
+                        <button
+                            class="btn btn-outline btn-sm col-span-2"
+                            on:click={onInsertCodeBlock}
+                            title="代码块"
+                        >
+                            📝 代码块
+                        </button>
+                        <button
+                            class="btn btn-outline btn-sm col-span-2"
+                            on:click={onInsertTable}
+                            title="表格"
+                        >
+                            📊 表格
+                        </button>
                     </div>
                 </div>
-                <textarea
-                    bind:value={textareaContent}
-                    class="textarea textarea-bordered flex-1 rounded-none border-0 font-mono resize-none"
-                    style="tab-size: 2;"
-                    placeholder="在此输入 Markdown 内容...
 
-# 标题示例
+                <div class="divider"></div>
 
-这是一段**粗体**和*斜体*文本。
-
-- 列表项 1
-- 列表项 2
-
-[链接示例](https://example.com)
-
-`行内代码`
-
-```
-代码块示例
-```"
-                    spellcheck="false"
-                ></textarea>
-            </div>
-
-            <div class="flex-1 flex flex-col bg-base-100 border-l">
-                <div
-                    class="flex justify-between items-center px-4 py-3 bg-base-200 border-b"
-                >
-                    <h3 class="text-sm font-semibold">预览</h3>
-                    <div class="text-xs opacity-70">实时预览</div>
-                </div>
-                <div class="flex-1 p-4 overflow-y-auto bg-base-100">
-                    {#if textareaContent.trim()}
-                        <div class="prose max-w-none">
-                            <!-- Simple markdown preview - in a real app you'd use a markdown parser -->
-                            {#each textareaContent.split("\n") as line}
-                                {#if line.startsWith("# ")}
-                                    <h1>{line.slice(2)}</h1>
-                                {:else if line.startsWith("## ")}
-                                    <h2>{line.slice(3)}</h2>
-                                {:else if line.startsWith("### ")}
-                                    <h3>{line.slice(4)}</h3>
-                                {:else if line.startsWith("- ")}
-                                    <li>{line.slice(2)}</li>
-                                {:else if line.trim() === ""}
-                                    <br />
-                                {:else}
-                                    <p>{line}</p>
-                                {/if}
-                            {/each}
-                        </div>
-                    {:else}
-                        <div
-                            class="flex items-center justify-center h-full text-base-content opacity-50 italic"
+                <div>
+                    <h3 class="font-semibold mb-2">转换设置</h3>
+                    <div class="form-control">
+                        <label class="label" for="output-format">
+                            <span class="label-text">输出格式</span>
+                        </label>
+                        <select
+                            id="output-format"
+                            class="select select-bordered select-sm w-full"
+                            bind:value={selectedOutputFormat}
                         >
-                            <p>在左侧编辑器中输入内容，这里会显示预览</p>
-                        </div>
+                            {#each editorOutputFormats as format}
+                                <option value={format.value}>
+                                    {format.label}
+                                </option>
+                            {/each}
+                        </select>
+                    </div>
+
+                    <button
+                        class="btn btn-primary btn-block mt-4"
+                        on:click={onSubmit}
+                        disabled={!canSubmit}
+                    >
+                        {#if isSubmitting}
+                            <span class="loading loading-spinner loading-sm"
+                            ></span>
+                            转换中...
+                        {:else}
+                            🚀 转换并保存 (Ctrl+Shift+Enter)
+                        {/if}
+                    </button>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="text-sm text-base-content opacity-70">
+                    <h4 class="font-semibold mb-1">快捷键</h4>
+                    <ul class="space-y-1">
+                        <li>Ctrl+S: 保存</li>
+                        <li>Ctrl+B: 粗体</li>
+                        <li>Ctrl+I: 斜体</li>
+                        <li>Ctrl+Shift+Enter: 转换</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <div class="bg-base-100 border-b border-base-300 px-4 py-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-base-content opacity-70">
+                        字符数: {textareaContent.length}
+                    </span>
+                    {#if !validation.isValid}
+                        <span class="text-error text-sm">
+                            {validation.message}
+                        </span>
                     {/if}
                 </div>
             </div>
+
+            <div class="flex-1 overflow-hidden">
+                <textarea
+                    class="textarea textarea-ghost w-full h-full resize-none border-0 rounded-none text-base leading-relaxed p-6 focus:outline-none"
+                    placeholder="在此输入您的 Markdown 内容...
+
+例如：
+# 这是标题
+
+这是一段**粗体文本**和*斜体文本*。
+
+- 列表项目 1
+- 列表项目 2
+
+```javascript
+console.log('Hello, World!');
+```
+
+[这是一个链接](https://example.com)"
+                    bind:value={textareaContent}
+                    spellcheck="false"
+                ></textarea>
+            </div>
         </div>
     </div>
 
-    <div class="navbar bg-base-100 border-t">
-        <div class="navbar-start">
-            <div class="text-xs opacity-70">
-                快捷键: Ctrl+S 保存 | Ctrl+B 粗体 | Ctrl+I 斜体 |
-                Ctrl+Shift+Enter 转换
-            </div>
-        </div>
-        <div class="navbar-end gap-2">
-            <button
-                class="btn btn-outline"
-                on:click={saveContent}
-                disabled={isSaving || !textareaContent.trim()}
-            >
-                {#if isSaving}
-                    <span class="loading loading-spinner loading-sm"></span>
-                    保存中...
+    <!-- Status bar -->
+    <div class="bg-base-200 border-t border-base-300 px-4 py-2">
+        <div
+            class="flex justify-between items-center text-sm text-base-content opacity-70"
+        >
+            <span>
+                {#if textareaContent.trim()}
+                    内容已就绪
                 {:else}
-                    💾 保存 Markdown
+                    等待输入...
                 {/if}
-            </button>
-            <button
-                class="btn btn-success"
-                on:click={submitContent}
-                disabled={isSubmitting || !textareaContent.trim()}
-            >
-                {#if isSubmitting}
-                    <span class="loading loading-spinner loading-sm"></span>
-                    转换中...
-                {:else}
-                    🔄 转换并保存
-                {/if}
-            </button>
+            </span>
+            <span>
+                行数: {textareaContent.split("\n").length}
+            </span>
         </div>
     </div>
 </div>
+
+<style>
+    textarea {
+        font-family:
+            "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro",
+            monospace;
+    }
+
+    textarea::placeholder {
+        color: #9ca3af;
+        opacity: 0.6;
+    }
+</style>
